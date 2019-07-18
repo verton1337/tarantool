@@ -249,10 +249,8 @@ s:drop()
 ...
 box.execute("CREATE TABLE T2(ID INT PRIMARY KEY, CONSTRAINT CK1 CHECK(ID > 0), CONSTRAINT CK1 CHECK(ID < 0))")
 ---
-- error: Constraint CK1 already exists
-...
-box.space.T2:drop()
----
+- error: 'Failed to create check constraint ''T2'': Constraints can''t have the same
+    name: CK1'
 ...
 box.space._ck_constraint:select()
 ---

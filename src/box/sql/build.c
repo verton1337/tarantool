@@ -228,6 +228,58 @@ sql_space_column_is_in_pk(struct space *space, uint32_t column)
 		return key_def_find_by_fieldno(key_def, column) != NULL;
 	return false;
 }
+/**
+ * Check if create_table_def.new_space in @a parser already has a
+ * PRIMARY KEY/UNIQUE/CHECK/FOREIGN KEY constraint with @a name.
+ *
+ * The routine is used during CREATE TABLE only.
+ *
+ * @param parser Parser context.
+ * @param name Name to check.
+ *
+ * @retval true Has constraint with @a name.
+ * @retval false Has not.
+ */
+static bool
+sql_has_constr_with_name(struct Parse *parser, const char *name)
+{
+	 /* Replace with sql_space_index_by_name() after #3788. */
+	struct space *space = parser->create_table_def.new_space;
+	assert(name != NULL);
+	const char *pk_name = tt_sprintf("pk_%s", name);
+	const char *un_name = tt_sprintf("unique_%s", name);
+	for (uint32_t i = 0; i < space->index_count; ++i) {
+		struct index *idx = space->index[i];
+		if (memcmp(pk_name, idx->def->name, strlen(pk_name)) == 0 ||
+		    memcmp(un_name, idx->def->name, strlen(un_name)) == 0)
+			goto has;
+	}
+
+	struct ck_constraint_parse *ck_constr_p = NULL;
+	uint32_t name_len = strlen(name);
+	rlist_foreach_entry(ck_constr_p, &parser->create_table_def.new_check,
+			    link) {
+		if (strlen(ck_constr_p->ck_def->name) == name_len &&
+		    memcmp(ck_constr_p->ck_def->name, name, name_len) == 0)
+			goto has;
+	}
+	struct fk_constraint_parse *fk_constr_p = NULL;
+	rlist_foreach_entry(fk_constr_p, &parser->create_table_def.new_fkey,
+			    link) {
+		/* Skip current fk. */
+		if (fk_constr_p->fk_def == NULL)
+			continue;
+		if (strlen(fk_constr_p->fk_def->name) == name_len &&
+		    memcmp(fk_constr_p->fk_def->name, name, name_len) == 0)
+			goto has;
+	}
+	return false;
+has:
+	diag_set(ClientError, ER_CREATE_CK_CONSTRAINT, space->def->name,
+		 tt_sprintf("Constraints can\'t have the same name: %s", name));
+	parser->is_aborted = true;
+	return true;
+}
 
 /*
  * This routine is used to check if the UTF-8 string zName is a legal
@@ -602,6 +654,8 @@ sqlAddPrimaryKey(struct Parse *pParse)
 		sql_create_index(pParse);
 		if (db->mallocFailed)
 			goto primary_key_exit;
+		if (pParse->is_aborted)
+			goto primary_key_exit;
 	} else if (pParse->create_table_def.has_autoinc) {
 		diag_set(ClientError, ER_CREATE_SPACE, space->def->name,
 			 "AUTOINCREMENT is only allowed on an INTEGER PRIMARY "\
@@ -697,6 +751,10 @@ sql_create_check_contraint(struct Parse *parser)
 		if (name == NULL) {
 			parser->is_aborted = true;
 			return;
+		}
+		if (is_alter == false) {
+			if (sql_has_constr_with_name(parser, name) == true)
+				return;
 		}
 	} else {
 		assert(! is_alter);
@@ -1948,8 +2006,13 @@ sql_create_foreign_key(struct Parse *parse_context)
 		} else {
 			constraint_name =
 				sql_name_from_token(db, &create_def->name);
-			if (constraint_name == NULL)
+			if (constraint_name == NULL) {
 				parse_context->is_aborted = true;
+				goto tnt_error;
+			}
+			if (sql_has_constr_with_name(parse_context,
+						     constraint_name) == true)
+				goto tnt_error;
 		}
 	} else {
 		constraint_name = sql_name_from_token(db, &create_def->name);
@@ -2454,6 +2517,9 @@ sql_create_index(struct Parse *parse) {
 				parse->is_aborted = true;
 				goto exit_create_index;
 			}
+			if (sql_has_constr_with_name(parse,
+						     constraint_name) == true)
+				goto exit_create_index;
 		}
 
 	       /*

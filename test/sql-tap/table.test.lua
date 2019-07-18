@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(79)
+test:plan(95)
 
 --!./tcltestrunner.lua
 -- 2001 September 15
@@ -1471,5 +1471,167 @@ test:do_catchsql_test(
 		0
 		-- </table-24.2>
 	})
+
+--
+-- gh-3503 Check constraint name for duplicate.
+--
+test:do_execsql_test(
+    "table-25.1",
+    [[
+        CREATE TABLE t1 (i INT PRIMARY KEY);
+    ]], {
+        -- <table-25.1>
+        -- </table-25.1>
+    })
+
+test:do_catchsql_test(
+    "table-25.2",
+    [[
+        CREATE TABLE t2 (i INT, CONSTRAINT c UNIQUE (i), CONSTRAINT c PRIMARY KEY (i));
+    ]], {
+        -- <table-25.2>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.2>
+    })
+
+test:do_catchsql_test(
+    "table-25.3",
+    [[
+        CREATE TABLE t2 (i INT, CONSTRAINT c CHECK (i > 0), CONSTRAINT c PRIMARY KEY (i));
+    ]], {
+        -- <table-25.3>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.3>
+    })
+
+test:do_catchsql_test(
+    "table-25.4",
+    [[
+        CREATE TABLE t2 (i INT, CONSTRAINT c FOREIGN KEY(i) REFERENCES t1(i), CONSTRAINT c PRIMARY KEY (i));
+    ]], {
+        -- <table-25.4>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.4>
+    })
+
+test:do_catchsql_test(
+    "table-25.5",
+    [[
+        CREATE TABLE t2 (i INT CONSTRAINT c PRIMARY KEY, CONSTRAINT c UNIQUE (i));
+    ]], {
+        -- <table-25.5>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.5>
+    })
+
+test:do_catchsql_test(
+    "table-25.6",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c UNIQUE (i), CONSTRAINT c UNIQUE (i));
+    ]], {
+        -- <table-25.6>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.6>
+    })
+
+test:do_catchsql_test(
+    "table-25.7",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c CHECK (i > 0), CONSTRAINT c UNIQUE (i));
+    ]], {
+        -- <table-25.7>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.7>
+    })
+
+test:do_catchsql_test(
+    "table-25.8",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c  FOREIGN KEY(i) REFERENCES t1(i), CONSTRAINT c UNIQUE (i));
+    ]], {
+        -- <table-25.8>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.8>
+    })
+
+test:do_catchsql_test(
+    "table-25.9",
+    [[
+        CREATE TABLE t2 (i INT CONSTRAINT c PRIMARY KEY, CONSTRAINT c CHECK (i > 0));
+    ]], {
+        -- <table-25.9>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.9>
+    })
+
+test:do_catchsql_test(
+    "table-25.10",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c UNIQUE (i), CONSTRAINT c CHECK (i > 0));
+    ]], {
+        -- <table-25.10>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.10>
+    })
+
+test:do_catchsql_test(
+    "table-25.11",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c CHECK (i > 0), CONSTRAINT c CHECK (i < 0));
+    ]], {
+        -- <table-25.11>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.11>
+    })
+
+test:do_catchsql_test(
+    "table-25.12",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c  FOREIGN KEY(i) REFERENCES t1(i), CONSTRAINT c CHECK (i > 0));
+    ]], {
+        -- <table-25.12>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.12>
+    })
+
+test:do_catchsql_test(
+    "table-25.13",
+    [[
+        CREATE TABLE t2 (i INT CONSTRAINT c PRIMARY KEY, CONSTRAINT c FOREIGN KEY(i) REFERENCES t1(i));
+    ]], {
+        -- <table-25.13>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.13>
+    })
+
+test:do_catchsql_test(
+    "table-25.14",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c UNIQUE (i), CONSTRAINT c FOREIGN KEY(i) REFERENCES t1(i));
+    ]], {
+        -- <table-25.14>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.14>
+    })
+
+test:do_catchsql_test(
+    "table-25.15",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY, CONSTRAINT c CHECK (i > 0), CONSTRAINT c FOREIGN KEY(i) REFERENCES t1(i));
+    ]], {
+        -- <table-25.15>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.15>
+    })
+
+test:do_catchsql_test(
+    "table-25.16",
+    [[
+        CREATE TABLE t2 (i INT PRIMARY KEY CONSTRAINT c REFERENCES t1(i), CONSTRAINT c FOREIGN KEY(i) REFERENCES t1(i));
+    ]], {
+        -- <table-25.16>
+        1,"Failed to create check constraint 'T2': Constraints can't have the same name: C"
+        -- </table-25.16>
+    })
 
 test:finish_test()
