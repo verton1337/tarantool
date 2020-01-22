@@ -2147,8 +2147,11 @@ bps_tree_create_leaf(struct bps_tree *tree, bps_tree_block_id_t *id)
 {
 	struct bps_leaf *res = (struct bps_leaf *)
 			       bps_tree_garbage_pop(tree, id);
-	if (!res)
-		res = (struct bps_leaf *)matras_alloc(&tree->matras, id);
+	if (!res) {
+		res = (struct bps_leaf *) matras_alloc(&tree->matras, id);
+		if (!res)
+			return NULL;
+	}
 	res->header.type = BPS_TREE_BT_LEAF;
 	tree->leaf_count++;
 	return res;
@@ -2162,8 +2165,11 @@ bps_tree_create_inner(struct bps_tree *tree, bps_tree_block_id_t *id)
 {
 	struct bps_inner *res = (struct bps_inner *)
 				bps_tree_garbage_pop(tree, id);
-	if (!res)
-		res = (struct bps_inner *)matras_alloc(&tree->matras, id);
+	if (!res) {
+		res = (struct bps_inner *) matras_alloc(&tree->matras, id);
+		if (!res)
+			return NULL;
+	}
 	res->header.type = BPS_TREE_BT_INNER;
 	tree->inner_count++;
 	return res;
@@ -3472,6 +3478,8 @@ bps_tree_process_insert_leaf(struct bps_tree *tree,
 	}
 	bps_tree_block_id_t new_block_id = (bps_tree_block_id_t)(-1);
 	struct bps_leaf *new_leaf = bps_tree_create_leaf(tree, &new_block_id);
+	if (!new_leaf)
+		return -1;
 
 	leaf_path_elem->block = (struct bps_leaf *)
 	bps_tree_touch_block(tree, leaf_path_elem->block_id);
@@ -3710,6 +3718,8 @@ bps_tree_process_insert_leaf(struct bps_tree *tree,
 		bps_tree_block_id_t new_root_id = (bps_tree_block_id_t)(-1);
 		struct bps_inner *new_root = bps_tree_create_inner(tree,
 				&new_root_id);
+		if (!new_root)
+			return -1;
 		new_root->header.size = 2;
 		new_root->child_ids[0] = tree->root_id;
 		new_root->child_ids[1] = new_block_id;
@@ -3835,6 +3845,8 @@ bps_tree_process_insert_inner(struct bps_tree *tree,
 	bps_tree_block_id_t new_block_id = (bps_tree_block_id_t)(-1);
 	struct bps_inner *new_inner = bps_tree_create_inner(tree,
 			&new_block_id);
+	if (!new_inner)
+		return -1;
 
 	new_inner->header.size = 0;
 	struct bps_inner_path_elem new_path_elem;
@@ -4030,6 +4042,8 @@ bps_tree_process_insert_inner(struct bps_tree *tree,
 		bps_tree_block_id_t new_root_id = (bps_tree_block_id_t)(-1);
 		struct bps_inner *new_root =
 			bps_tree_create_inner(tree, &new_root_id);
+		if (!new_root)
+			return -1;
 		new_root->header.size = 2;
 		new_root->child_ids[0] = tree->root_id;
 		new_root->child_ids[1] = new_block_id;
