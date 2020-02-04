@@ -340,23 +340,23 @@ test:do_execsql_test(
         -- </tkt-80e031a00f.26>
     })
 
-test:do_catchsql_test(
+test:do_execsql_test(
     "tkt-80e031a00f.27",
     [[
         SELECT 'hello' IN t1
     ]], {
         -- <tkt-80e031a00f.27>
-        1, 'Type mismatch: can not convert hello to integer'
+        false
         -- </tkt-80e031a00f.27>
     })
 
-test:do_catchsql_test(
+test:do_execsql_test(
     "tkt-80e031a00f.28",
     [[
         SELECT 'hello' NOT IN t1
     ]], {
         -- <tkt-80e031a00f.28>
-        1, 'Type mismatch: can not convert hello to integer'
+        true
         -- </tkt-80e031a00f.28>
     })
 
@@ -380,23 +380,23 @@ test:do_execsql_test(
         -- </tkt-80e031a00f.30>
     })
 
-test:do_catchsql_test(
+test:do_execsql_test(
     "tkt-80e031a00f.31",
     [[
         SELECT x'303132' IN t1
     ]], {
         -- <tkt-80e031a00f.31>
-        1, 'Type mismatch: can not convert varbinary to integer'
+        false
         -- </tkt-80e031a00f.31>
     })
 
-test:do_catchsql_test(
+test:do_execsql_test(
     "tkt-80e031a00f.32",
     [[
         SELECT x'303132' NOT IN t1
     ]], {
         -- <tkt-80e031a00f.32>
-        1, 'Type mismatch: can not convert varbinary to integer'
+        true
         -- </tkt-80e031a00f.32>
     })
 

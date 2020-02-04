@@ -3872,12 +3872,12 @@ SELECT false IN (0, 1, 2, 3);
 SELECT true IN (SELECT b FROM t7);
  | ---
  | - null
- | - 'Type mismatch: can not convert TRUE to integer'
+ | - 'Type mismatch: can not convert unsigned to boolean'
  | ...
 SELECT false IN (SELECT b FROM t7);
  | ---
  | - null
- | - 'Type mismatch: can not convert FALSE to integer'
+ | - 'Type mismatch: can not convert unsigned to boolean'
  | ...
 SELECT a1, a1 IN (0, 1, 2, 3) FROM t6
  | ---
@@ -5033,22 +5033,22 @@ SELECT a2 IN (0.1, 1.2, 2.3, 3.4) FROM t6 LIMIT 1;
 SELECT true IN (SELECT c FROM t8);
  | ---
  | - null
- | - 'Type mismatch: can not convert TRUE to number'
+ | - 'Type mismatch: can not convert real to boolean'
  | ...
 SELECT false IN (SELECT c FROM t8);
  | ---
  | - null
- | - 'Type mismatch: can not convert FALSE to number'
+ | - 'Type mismatch: can not convert real to boolean'
  | ...
 SELECT a1 IN (SELECT c FROM t8) FROM t6 LIMIT 1;
  | ---
  | - null
- | - 'Type mismatch: can not convert FALSE to number'
+ | - 'Type mismatch: can not convert real to boolean'
  | ...
 SELECT a2 IN (SELECT c FROM t8) FROM t6 LIMIT 1;
  | ---
  | - null
- | - 'Type mismatch: can not convert TRUE to number'
+ | - 'Type mismatch: can not convert real to boolean'
  | ...
 
 SELECT true BETWEEN 0.1 and 9.9;

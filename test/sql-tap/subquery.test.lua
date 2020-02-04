@@ -363,7 +363,6 @@ test:do_test(
         ]]
     end, {
         -- <subquery-2.5.2>
-        "10.0"
         -- </subquery-2.5.2>
     })
 
@@ -378,7 +377,6 @@ test:do_test(
         ]]
     end, {
         -- <subquery-2.5.3.1>
-        "10.0"
         -- </subquery-2.5.3.1>
     })
 

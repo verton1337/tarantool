@@ -3058,8 +3058,6 @@ sqlExprCodeIN(Parse * pParse,	/* Parsing and code generating context */
 	pLeft = pExpr->pLeft;
 	if (sqlExprCheckIN(pParse, pExpr))
 		return;
-	/* Type sequence for comparisons. */
-	enum field_type *zAff = expr_in_type(pParse, pExpr);
 	nVector = sqlExprVectorSize(pExpr->pLeft);
 	aiMap =
 	    (int *)sqlDbMallocZero(pParse->db,
@@ -3140,16 +3138,15 @@ sqlExprCodeIN(Parse * pParse,	/* Parsing and code generating context */
 						  (void *)coll, P4_COLLSEQ);
 				VdbeCoverageIf(v, ii < pList->nExpr - 1);
 				VdbeCoverageIf(v, ii == pList->nExpr - 1);
-				sqlVdbeChangeP5(v, zAff[0]);
+				sqlVdbeChangeP5(v, sql_expr_type(pLeft));
 			} else {
 				assert(destIfNull == destIfFalse);
 				sqlVdbeAddOp4(v, OP_Ne, rLhs, destIfFalse,
 						  r2, (void *)coll,
 						  P4_COLLSEQ);
 				VdbeCoverage(v);
-				sqlVdbeChangeP5(v,
-						    zAff[0] |
-						    SQL_JUMPIFNULL);
+				sqlVdbeChangeP5(v, sql_expr_type(pLeft) |
+						SQL_JUMPIFNULL);
 			}
 			sqlReleaseTempReg(pParse, regToFree);
 		}
@@ -3184,14 +3181,6 @@ sqlExprCodeIN(Parse * pParse,	/* Parsing and code generating context */
 	 * of the RHS using the LHS as a probe.  If found, the result is
 	 * true.
 	 */
-	zAff[nVector] = field_type_MAX;
-	sqlVdbeAddOp4(v, OP_ApplyType, rLhs, nVector, 0, (char*)zAff,
-			  P4_DYNAMIC);
-	/*
-	 * zAff will be freed at the end of VDBE execution, since
-	 * it was passed with P4_DYNAMIC flag.
-	 */
-	zAff = NULL;
 	if (destIfFalse == destIfNull) {
 		/* Combine Step 3 and Step 5 into a single opcode */
 		sqlVdbeAddOp4Int(v, OP_NotFound, pExpr->iTable,
@@ -3277,7 +3266,6 @@ sqlExprCodeIN(Parse * pParse,	/* Parsing and code generating context */
 	VdbeComment((v, "end IN expr"));
  sqlExprCodeIN_oom_error:
 	sqlDbFree(pParse->db, aiMap);
-	sqlDbFree(pParse->db, zAff);
 }
 
 /*
