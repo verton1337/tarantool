@@ -2288,8 +2288,10 @@ local_recovery(const struct tt_uuid *instance_uuid,
 		recovery_follow_local(recovery, &wal_stream.base, "hot_standby",
 				      cfg_getd("wal_dir_rescan_delay"));
 		while (true) {
-			if (path_lock(cfg_gets("wal_dir"), &wal_dir_lock))
+			if (path_lock(cfg_gets("wal_dir"), &wal_dir_lock)) {
+				recovery_stop_local(recovery);
 				diag_raise();
+			}
 			if (wal_dir_lock >= 0)
 				break;
 			fiber_sleep(0.1);

@@ -216,7 +216,7 @@ gap_error:
 void
 recovery_delete(struct recovery *r)
 {
-	recovery_stop_local(r);
+	assert(r->watcher == NULL);
 
 	trigger_destroy(&r->on_close_log);
 	xdir_destroy(&r->wal_dir);
