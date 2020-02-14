@@ -261,9 +261,18 @@ memtx_space_replace_all_keys(struct space *space, struct tuple *old_tuple,
 	 * Ensure we have enough slack memory to guarantee
 	 * successful statement-level rollback.
 	 */
-	if (memtx_index_extent_reserve(memtx, new_tuple != NULL ?
-				       RESERVE_EXTENTS_BEFORE_REPLACE :
-				       RESERVE_EXTENTS_BEFORE_DELETE) != 0)
+	int reserve_extents_num = new_tuple != NULL ?
+				  RESERVE_EXTENTS_BEFORE_REPLACE :
+				  RESERVE_EXTENTS_BEFORE_DELETE;
+	ERROR_INJECT(ERRINJ_RESERVE_EXTENTS_BEFORE_DELETE, {
+		/**
+		 * Set huge number of needed reserved extents to
+		 * provoke delete failure.
+		 */
+		if (new_tuple == NULL)
+			reserve_extents_num = memtx->num_reserved_extents + 1;
+	});
+	if (memtx_index_extent_reserve(memtx, reserve_extents_num) != 0)
 		return -1;
 
 	uint32_t i = 0;
