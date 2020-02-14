@@ -1321,9 +1321,34 @@ space_truncate(struct space *space)
 	ops_buf_end = mp_encode_uint(ops_buf_end, 1);
 	assert(ops_buf_end < buf + buf_size);
 
+	struct txn *txn = NULL;
+	struct txn_savepoint *txn_svp = NULL;
+	if (!box_txn()) {
+		txn = txn_begin();
+		if (txn == NULL)
+			diag_raise();
+	} else {
+		txn_svp = box_txn_savepoint();
+		if (txn_svp == NULL)
+			diag_raise();
+	}
+	struct space *truncate_space = space_cache_find_xc(BOX_TRUNCATE_ID);
+	quota_on_off(&((struct memtx_engine *)truncate_space->engine)->quota, false);
 	if (box_upsert(BOX_TRUNCATE_ID, 0, tuple_buf, tuple_buf_end,
-		       ops_buf, ops_buf_end, 0, NULL) != 0)
+		       ops_buf, ops_buf_end, 0, NULL) != 0) {
+		quota_on_off(&((struct memtx_engine *)truncate_space->engine)->quota, true);
+		if (txn != NULL)
+			txn_rollback(txn);
+		else
+			box_txn_rollback_to_savepoint(txn_svp);
+		fiber_gc();
 		diag_raise();
+	}
+	quota_on_off(&((struct memtx_engine *)truncate_space->engine)->quota, true);
+	if (txn != NULL && txn_commit(txn) != 0) {
+		fiber_gc();
+		diag_raise();
+	}
 }
 
 int

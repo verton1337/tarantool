@@ -28,6 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include "exception.h"
 #include "memtx_space.h"
 #include "space.h"
 #include "iproto_constants.h"
@@ -354,10 +355,19 @@ memtx_space_execute_delete(struct space *space, struct txn *txn,
 	struct tuple *old_tuple;
 	if (index_get(pk, key, part_count, &old_tuple) != 0)
 		return -1;
-	if (old_tuple != NULL &&
-	    memtx_space->replace(space, old_tuple, NULL,
-				 DUP_REPLACE_OR_INSERT, &stmt->old_tuple) != 0)
-		return -1;
+	if (old_tuple != NULL) {
+		bool oom = !diag_is_empty(diag_get()) &&
+			   diag_last_error(diag_get())->type == &type_OutOfMemory;
+		if (oom)
+			quota_on_off(&((struct memtx_engine *)space->engine)->quota, false);
+		int rc = memtx_space->replace(space, old_tuple, NULL,
+					      DUP_REPLACE_OR_INSERT,
+					      &stmt->old_tuple);
+		if (oom)
+			quota_on_off(&((struct memtx_engine *)space->engine)->quota, true);
+		if (rc != 0)
+			return -1;
+	}
 	stmt->engine_savepoint = stmt;
 	*result = stmt->old_tuple;
 	return 0;
