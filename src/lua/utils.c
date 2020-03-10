@@ -53,6 +53,9 @@ static uint32_t CTID_CONST_CHAR_PTR;
 static uint32_t CTID_UUID;
 uint32_t CTID_DECIMAL;
 
+enum {
+	SERIALIZER_CRITICAL_RECURSION_DEPTH = 256
+};
 
 void *
 luaL_pushcdata(struct lua_State *L, uint32_t ctypeid)
@@ -493,6 +496,11 @@ static int
 lua_field_try_serialize(struct lua_State *L, struct luaL_serializer *cfg,
 			int idx, struct luaL_field *field)
 {
+	if (idx > SERIALIZER_CRITICAL_RECURSION_DEPTH) {
+		diag_set(LuajitError, LUAL_SERIALIZE " generates too deep "
+			 "recursion");
+		return -1;
+	}
 	if (luaL_getmetafield(L, idx, LUAL_SERIALIZE) == 0)
 		return 1;
 	if (lua_isfunction(L, -1)) {
