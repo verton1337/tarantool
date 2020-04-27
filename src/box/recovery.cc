@@ -375,83 +375,92 @@ recovery_finalize(struct recovery *r)
  * file triggers a wakeup. The WAL dir path is set in the
  * constructor. XLOG file path is set with set_log_path().
  */
-class WalSubscription {
-public:
-	struct fiber *f;
-	unsigned events;
-	struct ev_stat dir_stat;
-	struct ev_stat file_stat;
-	char dir_path[PATH_MAX];
-	char file_path[PATH_MAX];
-
-	static void dir_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
-	{
-		((WalSubscription *)stat->data)->wakeup(WAL_EVENT_ROTATE);
-	}
-
-	static void file_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
-	{
-		((WalSubscription *)stat->data)->wakeup(WAL_EVENT_WRITE);
-	}
-
-	void wakeup(unsigned events)
-	{
-		this->events |= events;
-		if (f->flags & FIBER_IS_CANCELLABLE)
-			fiber_wakeup(f);
-	}
-
-	WalSubscription(const char *wal_dir)
-	{
-		f = fiber();
-		events = 0;
-		if ((size_t)snprintf(dir_path, sizeof(dir_path), "%s", wal_dir) >=
-				sizeof(dir_path)) {
-
-			panic("path too long: %s", wal_dir);
-		}
-
-		ev_stat_init(&dir_stat, dir_stat_cb, "", 0.0);
-		ev_stat_init(&file_stat, file_stat_cb, "", 0.0);
-		dir_stat.data = this;
-		file_stat.data = this;
-
-		ev_stat_set(&dir_stat, dir_path, 0.0);
-		ev_stat_start(loop(), &dir_stat);
-	}
-
-	~WalSubscription()
-	{
-		ev_stat_stop(loop(), &file_stat);
-		ev_stat_stop(loop(), &dir_stat);
-	}
-
-	void set_log_path(const char *path)
-	{
-		/*
-		 * Avoid toggling ev_stat if the path didn't change.
-		 * Note: .file_path valid iff file_stat is active.
-		 */
-		if (path && ev_is_active(&file_stat) &&
-				strcmp(file_path, path) == 0) {
-
-			return;
-		}
-
-		ev_stat_stop(loop(), &file_stat);
-
-		if (path == NULL)
-			return;
-
-		if ((size_t)snprintf(file_path, sizeof(file_path), "%s", path) >=
-				sizeof(file_path)) {
-
-			panic("path too long: %s", path);
-		}
-		ev_stat_set(&file_stat, file_path, 0.0);
-		ev_stat_start(loop(), &file_stat);
-	}
+struct wal_subscr {
+	struct fiber	*f;
+	unsigned int	events;
+	struct ev_stat	dir_stat;
+	struct ev_stat	file_stat;
+	char		dir_path[PATH_MAX];
+	char		file_path[PATH_MAX];
 };
+
+static void
+wal_subscr_wakeup(struct wal_subscr *ws, unsigned int events)
+{
+	ws->events |= events;
+	if (ws->f->flags & FIBER_IS_CANCELLABLE)
+		fiber_wakeup(ws->f);
+}
+
+static void
+wal_subscr_dir_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
+{
+	struct wal_subscr *ws = (struct wal_subscr *)stat->data;
+	wal_subscr_wakeup(ws, WAL_EVENT_ROTATE);
+}
+
+static void
+wal_subscr_file_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
+{
+	struct wal_subscr *ws = (struct wal_subscr *)stat->data;
+	wal_subscr_wakeup(ws, WAL_EVENT_WRITE);
+}
+
+static void
+wal_subscr_set_log_path(struct wal_subscr *ws, const char *path)
+{
+	size_t len;
+
+	/*
+	 * Avoid toggling ev_stat if the path didn't change.
+	 * Note: .file_path valid iff file_stat is active.
+	 */
+	if (path && ev_is_active(&ws->file_stat) &&
+	    strcmp(ws->file_path, path) == 0) {
+		return;
+	}
+
+	ev_stat_stop(loop(), &ws->file_stat);
+	if (path == NULL)
+		return;
+
+	len = snprintf(ws->file_path, sizeof(ws->file_path), "%s", path);
+	if (len >= sizeof(ws->file_path))
+		panic("wal_subscr: log path is too long: %s", path);
+
+	ev_stat_set(&ws->file_stat, ws->file_path, 0.0);
+	ev_stat_start(loop(), &ws->file_stat);
+}
+
+static void
+wal_subscr_create(struct wal_subscr *ws, const char *wal_dir)
+{
+	size_t len;
+
+	memset(ws, 0, sizeof(*ws));
+
+	ws->f = fiber();
+	ws->events = 0;
+
+	len = snprintf(ws->dir_path, sizeof(ws->dir_path), "%s", wal_dir);
+	if (len >= sizeof(ws->dir_path))
+		panic("wal_subscr: wal dir path is too long: %s", wal_dir);
+
+	ev_stat_init(&ws->dir_stat, wal_subscr_dir_stat_cb, "", 0.0);
+	ev_stat_init(&ws->file_stat, wal_subscr_file_stat_cb, "", 0.0);
+	ws->dir_stat.data = ws;
+	ws->file_stat.data = ws;
+
+	ev_stat_set(&ws->dir_stat, ws->dir_path, 0.0);
+	ev_stat_start(loop(), &ws->dir_stat);
+}
+
+static void
+wal_subscr_destroy(struct wal_subscr *ws)
+{
+	ev_stat_stop(loop(), &ws->file_stat);
+	ev_stat_stop(loop(), &ws->dir_stat);
+}
 
 static int
 hot_standby_f(va_list ap)
@@ -463,7 +472,12 @@ hot_standby_f(va_list ap)
 	ev_tstamp wal_dir_rescan_delay = va_arg(ap, ev_tstamp);
 	fiber_set_user(fiber(), &admin_credentials);
 
-	WalSubscription subscription(r->wal_dir.dirname);
+	struct wal_subscr ws;
+	auto guard = make_scoped_guard([&]{
+		wal_subscr_destroy(&ws);
+	});
+
+	wal_subscr_create(&ws, r->wal_dir.dirname);
 
 	while (! fiber_is_cancelled()) {
 
@@ -490,11 +504,11 @@ hot_standby_f(va_list ap)
 			 */
 		} while (end > start && !xlog_cursor_is_open(&r->cursor));
 
-		subscription.set_log_path(xlog_cursor_is_open(&r->cursor) ?
-					  r->cursor.name : NULL);
+		wal_subscr_set_log_path(&ws, xlog_cursor_is_open(&r->cursor) ?
+					r->cursor.name : NULL);
 
 		bool timed_out = false;
-		if (subscription.events == 0) {
+		if (ws.events == 0) {
 			/**
 			 * Allow an immediate wakeup/break loop
 			 * from recovery_stop_local().
@@ -504,10 +518,8 @@ hot_standby_f(va_list ap)
 			fiber_set_cancellable(false);
 		}
 
-		scan_dir = timed_out ||
-			(subscription.events & WAL_EVENT_ROTATE) != 0;
-
-		subscription.events = 0;
+		scan_dir = timed_out || (ws.events & WAL_EVENT_ROTATE) != 0;
+		ws.events = 0;
 	}
 	return 0;
 }
