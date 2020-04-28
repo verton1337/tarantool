@@ -74,7 +74,7 @@ recovery_delete(struct recovery *r);
  * @gc_vclock is set to the oldest vclock available in the
  * WAL directory.
  */
-void
+int
 recovery_scan(struct recovery *r,  struct vclock *end_vclock,
 	      struct vclock *gc_vclock);
 

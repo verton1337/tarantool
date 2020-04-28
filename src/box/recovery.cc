@@ -114,18 +114,19 @@ recovery_new(const char *wal_dirname, bool force_recovery,
 	return r;
 }
 
-void
+int
 recovery_scan(struct recovery *r, struct vclock *end_vclock,
 	      struct vclock *gc_vclock)
 {
-	xdir_scan_xc(&r->wal_dir);
+	if (xdir_scan(&r->wal_dir) == -1)
+		return -1;
 
 	if (xdir_last_vclock(&r->wal_dir, end_vclock) < 0 ||
 	    vclock_compare(end_vclock, &r->vclock) < 0) {
 		/* No xlogs after last checkpoint. */
 		vclock_copy(gc_vclock, &r->vclock);
 		vclock_copy(end_vclock, &r->vclock);
-		return;
+		return 0;
 	}
 
 	if (xdir_first_vclock(&r->wal_dir, gc_vclock) < 0)
@@ -133,12 +134,19 @@ recovery_scan(struct recovery *r, struct vclock *end_vclock,
 
 	/* Scan the last xlog to find end vclock. */
 	struct xlog_cursor cursor;
-	if (xdir_open_cursor(&r->wal_dir, vclock_sum(end_vclock), &cursor) != 0)
-		return;
+	if (xdir_open_cursor(&r->wal_dir, vclock_sum(end_vclock), &cursor) != 0) {
+		/*
+		 * FIXME: Why do we ignore errors?!
+		 */
+		return 0;
+	}
+
 	struct xrow_header row;
 	while (xlog_cursor_next(&cursor, &row, true) == 0)
 		vclock_follow_xrow(end_vclock, &row);
+
 	xlog_cursor_close(&cursor, false);
+	return 0;
 }
 
 static int
