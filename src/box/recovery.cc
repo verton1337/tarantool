@@ -494,15 +494,12 @@ hot_standby_f(va_list ap)
 	struct recovery *r = va_arg(ap, struct recovery *);
 	struct xstream *stream = va_arg(ap, struct xstream *);
 	bool scan_dir = true;
+	int rc = 0;
 
 	ev_tstamp wal_dir_rescan_delay = va_arg(ap, ev_tstamp);
 	fiber_set_user(fiber(), &admin_credentials);
 
 	struct wal_subscr ws;
-	auto guard = make_scoped_guard([&]{
-		wal_subscr_destroy(&ws);
-	});
-
 	wal_subscr_create(&ws, r->wal_dir.dirname);
 
 	while (! fiber_is_cancelled()) {
@@ -519,8 +516,16 @@ hot_standby_f(va_list ap)
 		do {
 			start = vclock_sum(&r->vclock);
 
-			if (recover_remaining_wals(r, stream, NULL, scan_dir) != 0)
-				diag_raise();
+			if (recover_remaining_wals(r, stream, NULL, scan_dir) != 0) {
+				/*
+				 * Since we're the fiber function the wrapper
+				 * fiber_cxx_invoke doesn't log the real reson
+				 * of the failure. Thus make it so explicitly.
+				 */
+				diag_log();
+				rc = -1;
+				goto out;
+			}
 
 			end = vclock_sum(&r->vclock);
 			/*
@@ -548,7 +553,9 @@ hot_standby_f(va_list ap)
 		scan_dir = timed_out || (ws.events & WAL_EVENT_ROTATE) != 0;
 		ws.events = 0;
 	}
-	return 0;
+out:
+	wal_subscr_destroy(&ws);
+	return rc;
 }
 
 void
