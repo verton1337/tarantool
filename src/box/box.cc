@@ -2276,7 +2276,8 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	memtx_engine_recover_snapshot_xc(memtx, checkpoint_vclock);
 
 	engine_begin_final_recovery_xc();
-	recover_remaining_wals(recovery, &wal_stream.base, NULL, false);
+	if (recover_remaining_wals(recovery, &wal_stream.base, NULL, false) != 0)
+		diag_raise();
 	engine_end_recovery_xc();
 	/*
 	 * Leave hot standby mode, if any, only after
@@ -2297,7 +2298,8 @@ local_recovery(const struct tt_uuid *instance_uuid,
 			fiber_sleep(0.1);
 		}
 		recovery_stop_local(recovery);
-		recover_remaining_wals(recovery, &wal_stream.base, NULL, true);
+		if (recover_remaining_wals(recovery, &wal_stream.base, NULL, true) != 0)
+			diag_raise();
 		/*
 		 * Advance replica set vclock to reflect records
 		 * applied in hot standby mode.

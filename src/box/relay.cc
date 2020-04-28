@@ -341,8 +341,10 @@ relay_final_join_f(va_list ap)
 
 	/* Send all WALs until stop_vclock */
 	assert(relay->stream.write != NULL);
-	recover_remaining_wals(relay->r, &relay->stream,
-			       &relay->stop_vclock, true);
+	if (recover_remaining_wals(relay->r, &relay->stream,
+				   &relay->stop_vclock, true) != 0) {
+		diag_raise();
+	}
 	assert(vclock_compare(&relay->r->vclock, &relay->stop_vclock) == 0);
 	return 0;
 }
@@ -499,8 +501,11 @@ relay_process_wal_event(struct wal_watcher *watcher, unsigned events)
 		return;
 	}
 	try {
-		recover_remaining_wals(relay->r, &relay->stream, NULL,
-				       (events & WAL_EVENT_ROTATE) != 0);
+		bool scan_dir = (events & WAL_EVENT_ROTATE) ? true : false;
+		if (recover_remaining_wals(relay->r, &relay->stream, NULL,
+					   scan_dir) != 0) {
+			diag_raise();
+		}
 	} catch (Exception *e) {
 		relay_set_error(relay, e);
 		fiber_cancel(fiber());

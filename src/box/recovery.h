@@ -102,7 +102,7 @@ recovery_finalize(struct recovery *r);
  * This function will not close r->current_wal if
  * recovery was successful.
  */
-void
+int
 recover_remaining_wals(struct recovery *r, struct xstream *stream,
 		       const struct vclock *stop_vclock, bool scan_dir);
 

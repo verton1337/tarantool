@@ -316,14 +316,16 @@ recover_xlog(struct recovery *r, struct xstream *stream,
  * This function will not close r->current_wal if
  * recovery was successful.
  */
-void
+int
 recover_remaining_wals(struct recovery *r, struct xstream *stream,
 		       const struct vclock *stop_vclock, bool scan_dir)
 {
 	struct vclock *clock;
 
-	if (scan_dir)
-		xdir_scan_xc(&r->wal_dir);
+	if (scan_dir) {
+		if (xdir_scan(&r->wal_dir) != 0)
+			return -1;
+	}
 
 	if (xlog_cursor_is_open(&r->cursor)) {
 		/* If there's a WAL open, recover from it first. */
@@ -358,24 +360,27 @@ recover_remaining_wals(struct recovery *r, struct xstream *stream,
 		}
 
 		if (recovery_open_log(r, clock) != 0)
-			diag_raise();
+			return -1;
 
 		say_info("recover from `%s'", r->cursor.name);
 
 recover_current_wal:
 		if (recover_xlog(r, stream, stop_vclock) < 0)
-			diag_raise();
+			return -1;
 	}
 
 	if (xlog_cursor_is_eof(&r->cursor)) {
 		if (recovery_close_log(r) != 0)
-			diag_raise();
+			return -1;
 	}
 
-	if (stop_vclock != NULL && vclock_compare(&r->vclock, stop_vclock) != 0)
-		tnt_raise(XlogGapError, &r->vclock, stop_vclock);
+	if (stop_vclock != NULL && vclock_compare(&r->vclock, stop_vclock) != 0) {
+		diag_set(XlogGapError, &r->vclock, stop_vclock);
+		return -1;
+	}
 
 	region_free(&fiber()->gc);
+	return 0;
 }
 
 void
@@ -514,7 +519,8 @@ hot_standby_f(va_list ap)
 		do {
 			start = vclock_sum(&r->vclock);
 
-			recover_remaining_wals(r, stream, NULL, scan_dir);
+			if (recover_remaining_wals(r, stream, NULL, scan_dir) != 0)
+				diag_raise();
 
 			end = vclock_sum(&r->vclock);
 			/*
