@@ -85,7 +85,7 @@ recovery_follow_local(struct recovery *r, struct xstream *stream,
 void
 recovery_stop_local(struct recovery *r);
 
-void
+int
 recovery_finalize(struct recovery *r);
 
 #if defined(__cplusplus)

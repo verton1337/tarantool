@@ -388,11 +388,10 @@ recover_current_wal:
 	return 0;
 }
 
-void
+int
 recovery_finalize(struct recovery *r)
 {
-	if (recovery_close_log(r) != 0)
-		diag_raise();
+	return recovery_close_log(r);
 }
 
 

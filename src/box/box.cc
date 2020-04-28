@@ -2312,7 +2312,9 @@ local_recovery(const struct tt_uuid *instance_uuid,
 		box_listen();
 		box_sync_replication(false);
 	}
-	recovery_finalize(recovery);
+
+	if (recovery_finalize(recovery) != 0)
+		diag_raise();
 
 	/*
 	 * We must enable WAL before finalizing engine recovery,
