@@ -558,7 +558,7 @@ out:
 	return rc;
 }
 
-void
+int
 recovery_follow_local(struct recovery *r, struct xstream *stream,
 		      const char *name, ev_tstamp wal_dir_rescan_delay)
 {
@@ -568,9 +568,12 @@ recovery_follow_local(struct recovery *r, struct xstream *stream,
 	 * xlog.
 	 */
 	assert(r->watcher == NULL);
-	r->watcher = fiber_new_xc(name, hot_standby_f);
+	r->watcher = fiber_new(name, hot_standby_f);
+	if (!r->watcher)
+		return -1;
 	fiber_set_joinable(r->watcher, true);
 	fiber_start(r->watcher, r, stream, wal_dir_rescan_delay);
+	return 0;
 }
 
 void

@@ -2286,8 +2286,9 @@ local_recovery(const struct tt_uuid *instance_uuid,
 	if (wal_dir_lock < 0) {
 		title("hot_standby");
 		say_info("Entering hot standby mode");
-		recovery_follow_local(recovery, &wal_stream.base, "hot_standby",
-				      cfg_getd("wal_dir_rescan_delay"));
+		if (recovery_follow_local(recovery, &wal_stream.base, "hot_standby",
+					  cfg_getd("wal_dir_rescan_delay")) != 0)
+			diag_raise();
 		while (true) {
 			if (path_lock(cfg_gets("wal_dir"), &wal_dir_lock)) {
 				recovery_stop_local(recovery);
