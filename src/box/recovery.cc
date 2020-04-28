@@ -144,19 +144,22 @@ recovery_scan(struct recovery *r, struct vclock *end_vclock,
 	xlog_cursor_close(&cursor, false);
 }
 
-static inline void
+static int
 recovery_close_log(struct recovery *r)
 {
-	if (!xlog_cursor_is_open(&r->cursor))
-		return;
-	if (xlog_cursor_is_eof(&r->cursor)) {
-		say_info("done `%s'", r->cursor.name);
-	} else {
-		say_warn("file `%s` wasn't correctly closed",
-			 r->cursor.name);
+	if (xlog_cursor_is_open(&r->cursor)) {
+		if (xlog_cursor_is_eof(&r->cursor)) {
+			say_info("done `%s'", r->cursor.name);
+		} else {
+			say_warn("file `%s` wasn't correctly closed",
+				 r->cursor.name);
+		}
+		xlog_cursor_close(&r->cursor, false);
+
+		if (trigger_run(&r->on_close_log, NULL) != 0)
+			return -1;
 	}
-	xlog_cursor_close(&r->cursor, false);
-	trigger_run_xc(&r->on_close_log, NULL);
+	return 0;
 }
 
 static void
@@ -166,7 +169,8 @@ recovery_open_log(struct recovery *r, const struct vclock *vclock)
 	struct xlog_meta meta = r->cursor.meta;
 	enum xlog_cursor_state state = r->cursor.state;
 
-	recovery_close_log(r);
+	if (recovery_close_log(r) != 0)
+		diag_raise();
 
 	xdir_open_cursor_xc(&r->wal_dir, vclock_sum(vclock), &r->cursor);
 
@@ -349,8 +353,10 @@ recover_current_wal:
 		recover_xlog(r, stream, stop_vclock);
 	}
 
-	if (xlog_cursor_is_eof(&r->cursor))
-		recovery_close_log(r);
+	if (xlog_cursor_is_eof(&r->cursor)) {
+		if (recovery_close_log(r) != 0)
+			diag_raise();
+	}
 
 	if (stop_vclock != NULL && vclock_compare(&r->vclock, stop_vclock) != 0)
 		tnt_raise(XlogGapError, &r->vclock, stop_vclock);
@@ -361,7 +367,8 @@ recover_current_wal:
 void
 recovery_finalize(struct recovery *r)
 {
-	recovery_close_log(r);
+	if (recovery_close_log(r) != 0)
+		diag_raise();
 }
 
 
