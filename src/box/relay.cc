@@ -363,8 +363,10 @@ relay_final_join(int fd, uint64_t sync, struct vclock *start_vclock,
 		relay_delete(relay);
 	});
 
-	relay->r = recovery_new(cfg_gets("wal_dir"), false,
-			       start_vclock);
+	relay->r = recovery_new(cfg_gets("wal_dir"), false, start_vclock);
+	if (relay->r == NULL)
+		diag_raise();
+
 	vclock_copy(&relay->stop_vclock, stop_vclock);
 
 	int rc = cord_costart(&relay->cord, "final_join",
@@ -717,8 +719,10 @@ relay_subscribe(struct replica *replica, int fd, uint64_t sync,
 	});
 
 	vclock_copy(&relay->local_vclock_at_subscribe, &replicaset.vclock);
-	relay->r = recovery_new(cfg_gets("wal_dir"), false,
-			        replica_clock);
+	relay->r = recovery_new(cfg_gets("wal_dir"), false, replica_clock);
+	if (relay->r == NULL)
+		diag_raise();
+
 	vclock_copy(&relay->tx.vclock, replica_clock);
 	relay->version_id = replica_version_id;
 

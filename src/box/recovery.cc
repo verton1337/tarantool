@@ -77,23 +77,19 @@
 /* {{{ Initial recovery */
 
 /**
- * Throws an exception in  case of error.
+ * Returns NULL in case of error.
  */
 struct recovery *
 recovery_new(const char *wal_dirname, bool force_recovery,
 	     const struct vclock *vclock)
 {
-	struct recovery *r = (struct recovery *)
-			calloc(1, sizeof(*r));
+	struct recovery *r;
 
+	r = (struct recovery *)calloc(1, sizeof(*r));
 	if (r == NULL) {
-		tnt_raise(OutOfMemory, sizeof(*r), "malloc",
-			  "struct recovery");
+		diag_set(OutOfMemory, sizeof(*r), "calloc",
+			 "struct recovery");
 	}
-
-	auto guard = make_scoped_guard([=]{
-		free(r);
-	});
 
 	xdir_create(&r->wal_dir, wal_dirname, XLOG, &INSTANCE_UUID,
 		    &xlog_opts_default);
@@ -108,12 +104,13 @@ recovery_new(const char *wal_dirname, bool force_recovery,
 	 * UUID, see replication/cluster.test for
 	 * details.
 	 */
-	xdir_check_xc(&r->wal_dir);
+	if (xdir_check(&r->wal_dir) != 0) {
+		free(r);
+		return NULL;
+	}
 
 	r->watcher = NULL;
 	rlist_create(&r->on_close_log);
-
-	guard.is_active = false;
 	return r;
 }
 
