@@ -162,17 +162,18 @@ recovery_close_log(struct recovery *r)
 	return 0;
 }
 
-static void
+static int
 recovery_open_log(struct recovery *r, const struct vclock *vclock)
 {
-	XlogGapError *e;
 	struct xlog_meta meta = r->cursor.meta;
 	enum xlog_cursor_state state = r->cursor.state;
+	int rc = 0;
 
 	if (recovery_close_log(r) != 0)
-		diag_raise();
+		return -1;
 
-	xdir_open_cursor_xc(&r->wal_dir, vclock_sum(vclock), &r->cursor);
+	if (xdir_open_cursor(&r->wal_dir, vclock_sum(vclock), &r->cursor) != 0)
+		return -1;
 
 	if (state == XLOG_CURSOR_NEW &&
 	    vclock_compare(vclock, &r->vclock) > 0) {
@@ -205,15 +206,16 @@ out:
 	 */
 	if (vclock_compare(&r->vclock, vclock) < 0)
 		vclock_copy(&r->vclock, vclock);
-	return;
+	return rc;
 
 gap_error:
-	e = tnt_error(XlogGapError, &r->vclock, vclock);
-	if (!r->wal_dir.force_recovery)
-		throw e;
-	/* Ignore missing WALs if force_recovery is set. */
-	e->log();
-	say_warn("ignoring a gap in LSN");
+	diag_set(XlogGapError, &r->vclock, vclock);
+	if (r->wal_dir.force_recovery) {
+		diag_log();
+		say_warn("ignoring a gap in LSN");
+	} else {
+		rc = -1;
+	}
 	goto out;
 }
 
@@ -345,7 +347,8 @@ recover_remaining_wals(struct recovery *r, struct xstream *stream,
 			continue;
 		}
 
-		recovery_open_log(r, clock);
+		if (recovery_open_log(r, clock) != 0)
+			diag_raise();
 
 		say_info("recover from `%s'", r->cursor.name);
 
