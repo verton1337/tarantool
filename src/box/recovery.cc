@@ -243,25 +243,28 @@ recovery_delete(struct recovery *r)
  * The reading will be stopped on reaching stop_vclock.
  * Use NULL for boundless recover
  */
-static void
+static int
 recover_xlog(struct recovery *r, struct xstream *stream,
 	     const struct vclock *stop_vclock)
 {
+	bool force_recovery = r->wal_dir.force_recovery;
 	struct xrow_header row;
 	uint64_t row_count = 0;
-	while (xlog_cursor_next_xc(&r->cursor, &row,
-				   r->wal_dir.force_recovery) == 0) {
+	int rc;
+
+	while ((rc = xlog_cursor_next(&r->cursor, &row, force_recovery)) == 0) {
 		/*
 		 * Read the next row from xlog file.
 		 *
-		 * xlog_cursor_next_xc() returns 1 when
+		 * xlog_cursor_next() returns 1 when
 		 * it can not read more rows. This doesn't mean
 		 * the file is fully read: it's fully read only
 		 * when EOF marker has been read, see i.eof_read
 		 */
 		if (stop_vclock != NULL &&
 		    r->vclock.signature >= stop_vclock->signature)
-			return;
+			return 0;
+
 		int64_t current_lsn = vclock_get(&r->vclock, row.replica_id);
 		if (row.lsn <= current_lsn)
 			continue; /* already applied, skip */
@@ -272,6 +275,7 @@ recover_xlog(struct recovery *r, struct xstream *stream,
 		 * are signed with a zero replica id.
 		 */
 		assert(row.replica_id != 0 || row.group_id == GROUP_LOCAL);
+
 		/*
 		 * We can promote the vclock either before or
 		 * after xstream_write(): it only makes any impact
@@ -281,18 +285,24 @@ recover_xlog(struct recovery *r, struct xstream *stream,
 		vclock_follow_xrow(&r->vclock, &row);
 		if (xstream_write(stream, &row) == 0) {
 			++row_count;
-			if (row_count % 100000 == 0)
+			if (row_count % 100000 == 0) {
 				say_info("%.1fM rows processed",
 					 row_count / 1000000.);
-		} else {
-			if (!r->wal_dir.force_recovery)
-				diag_raise();
-
-			say_error("skipping row {%u: %lld}",
-				  (unsigned)row.replica_id, (long long)row.lsn);
-			diag_log();
+			}
+			continue;
 		}
+
+		if (!force_recovery) {
+			rc = -1;
+			break;
+		}
+
+		say_error("skipping row {%u: %lld}",
+			  (unsigned)row.replica_id, (long long)row.lsn);
+		diag_log();
 	}
+
+	return rc;
 }
 
 /**
@@ -353,7 +363,8 @@ recover_remaining_wals(struct recovery *r, struct xstream *stream,
 		say_info("recover from `%s'", r->cursor.name);
 
 recover_current_wal:
-		recover_xlog(r, stream, stop_vclock);
+		if (recover_xlog(r, stream, stop_vclock) < 0)
+			diag_raise();
 	}
 
 	if (xlog_cursor_is_eof(&r->cursor)) {
