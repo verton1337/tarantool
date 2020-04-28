@@ -82,7 +82,7 @@ int
 recovery_follow_local(struct recovery *r, struct xstream *stream,
 		      const char *name, ev_tstamp wal_dir_rescan_delay);
 
-void
+int
 recovery_stop_local(struct recovery *r);
 
 int

@@ -2301,7 +2301,8 @@ local_recovery(const struct tt_uuid *instance_uuid,
 				break;
 			fiber_sleep(0.1);
 		}
-		recovery_stop_local(recovery);
+		if (recovery_stop_local(recovery))
+		    diag_raise();
 		if (recover_remaining_wals(recovery, &wal_stream.base, NULL, true) != 0)
 			diag_raise();
 		/*
