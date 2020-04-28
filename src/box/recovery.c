@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016, Tarantool AUTHORS, please see AUTHORS file.
+ * Copyright 2010-2020, Tarantool AUTHORS, please see AUTHORS file.
  *
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -31,7 +31,6 @@
 #include "recovery.h"
 
 #include "small/rlist.h"
-#include "scoped_guard.h"
 #include "trigger.h"
 #include "fiber.h"
 #include "xlog.h"
@@ -423,15 +422,21 @@ wal_subscr_wakeup(struct wal_subscr *ws, unsigned int events)
 }
 
 static void
-wal_subscr_dir_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
+wal_subscr_dir_stat_cb(struct ev_loop *loop, struct ev_stat *stat, int revents)
 {
+	(void)revents;
+	(void)loop;
+
 	struct wal_subscr *ws = (struct wal_subscr *)stat->data;
 	wal_subscr_wakeup(ws, WAL_EVENT_ROTATE);
 }
 
 static void
-wal_subscr_file_stat_cb(struct ev_loop *, struct ev_stat *stat, int)
+wal_subscr_file_stat_cb(struct ev_loop *loop, struct ev_stat *stat, int revents)
 {
+	(void)revents;
+	(void)loop;
+	
 	struct wal_subscr *ws = (struct wal_subscr *)stat->data;
 	wal_subscr_wakeup(ws, WAL_EVENT_WRITE);
 }

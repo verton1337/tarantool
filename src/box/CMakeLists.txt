@@ -131,7 +131,7 @@ add_library(box STATIC
     user.cc
     authentication.cc
     replication.cc
-    recovery.cc
+    recovery.c
     xstream.cc
     applier.cc
     relay.cc
