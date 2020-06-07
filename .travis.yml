@@ -50,6 +50,9 @@ jobs:
       - name: "Fedora 31 build + test + deploy RPM"
         env: OS=fedora DIST=31
         if: branch = "1.10"
+      - name: "Fedora 32 build + test + deploy RPM"
+        env: OS=fedora DIST=32
+        if: branch = "1.10"
       - name: "Ubuntu Trusty (14.04) build + deploy DEB"
         env: OS=ubuntu DIST=trusty
         if: branch = "1.10"
