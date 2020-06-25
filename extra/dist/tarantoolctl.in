@@ -889,6 +889,110 @@ local function cat()
     end
 end
 
+local function meta()
+    local opts = keyword_arguments
+    local dir = table.remove(positional_arguments, 1)
+
+    if dir == nil then
+        error("Empty DIR is provided")
+    end
+
+    local function parse_meta(file_name)
+        log.info("meta: parsing %s", file_name)
+
+        -- Make sure the file is big enough to
+        -- carry instance id (at least EOF mark
+        -- should be present which is 4 bytes).
+        local st, err = fio.stat(file_name)
+        if err ~= nil then
+            log.error("meta: Unable to fio.stat('%s'): %s", file_name, err)
+            error("Can't fetch file stat")
+        end
+        if st.size < 4 then
+            log.error("meta: file size is less than EOF marker")
+            error("File size is too small")
+        end
+
+        -- 1K buffer should be enough to carry the whole
+        -- meta information block.
+        local meta_size = st.size
+        if meta_size > 1024 then
+            meta_size = 1024
+        end
+
+        local fh, err = fio.open(file_name, {'O_RDWR'})
+        if err ~= nil then
+            log.error("meta: Unable to fio.open('%s'): %s", file_name, err)
+            error("Can't open file")
+        end
+
+        local data = fh:read(meta_size)
+        log.info("meta: read %d bytes", #data)
+
+        local i, j = string.find(data, "Instance: ")
+        if i == nil then
+            log.error("meta: No instance record found in %s", file_name)
+            fh:close()
+            error("No instance record found")
+        end
+
+        local ii, jj = string.find(data, "\n", i + 1)
+        if ii == nil then
+            log.error("meta: No newline after instance found in %s",
+                      file_name)
+            fh:close()
+            error("No newline after instance found")
+        end
+
+        local uuid_old = string.sub(data, j + 1, jj - 1)
+        if #uuid_old ~= 36 then
+            log.info("meta: UUID length mismatch (%d bytes)", #uuid_old)
+            fh:close()
+            error("UUID length mismatch")
+        end
+
+        -- If no keyword_arguments present we just print
+        -- out UUIDs detected for info sake.
+        log.info("meta: UUID found %s", uuid_old)
+
+        if keyword_arguments['from-uuid'] ~= nil then
+            if uuid_old ~= keyword_arguments['from-uuid'] then
+                log.info("meta: UUIDs mismatch (%s ~= ~%s)",
+                         keyword_arguments['from-uuid'], uuid_old)
+                fh:close()
+                error("UUIDs mismatch")
+                end
+            end
+
+        if keyword_arguments['to-uuid'] ~= nil then
+            local uuid_new = keyword_arguments['to-uuid']
+            log.info("meta: Changing UUIDs %s -> %s",
+                     uuid_old, uuid_new)
+            if not fh:pwrite(uuid_new .. "\n", i + 9) then
+                log.error("meta: Unable to write new UUID %s", uuid_new)
+                error("Unable to write new UUID")
+            end
+        end
+
+        fh:close()
+    end
+
+    local xlogs = fio.glob(dir .. '/*.xlog')
+    for i=1,#xlogs do
+        parse_meta(xlogs[i])
+    end
+
+    local snaps = fio.glob(dir .. '/*.snap')
+    for i=1,#snaps do
+        parse_meta(snaps[i])
+    end
+
+    local vylogs = fio.glob(dir .. '/*.vylog')
+    for i=1,#vylogs do
+        parse_meta(vylogs[i])
+    end
+end
+
 local function play()
     local opts = keyword_arguments
     local uri = table.remove(positional_arguments, 1)
@@ -1160,6 +1264,30 @@ local commands = setmetatable({
             weight = 90,
             deprecated = false,
         }
+    }, meta = {
+        func = exit_wrapper(meta), process = process_remote, help = {
+            header =
+                "%s meta DIR.. [--from-uuid=from_uuid] [--to-uuid=to_uuid]",
+            description =
+[=[
+        Change instance UUID in .snap/.xlog/.vylog files to another UUID.
+
+        The only purpose of this operation is to speedup procedure
+        of adding a new replica into a cluster. Directory with files
+        must be copied from the master node only.
+
+        This functionality is temporary solution and rather an ugly hack.
+        It is not guaranteed to be kept forever and may be dropped off
+        in any moment in future. And there is absolutely no guarantee
+        for correctness of results.
+
+        Supported options:
+        * --from-uuid=from_uuid instance UUID to be changed from.
+        * --to-uuid=to_uuid instance UUID to be set.
+]=],
+            weight = 100,
+            deprecated = false,
+        }
     }, play = {
         func = exit_wrapper(play), process = process_remote, help = {
             header =
@@ -1271,6 +1399,8 @@ local function populate_arguments()
         ka                = ka                or {}
         ka.from           = ka.from           or 0
         ka.to             = ka.to             or -1ULL
+        ka['from-uuid']   = ka['from-uuid']   or nil
+        ka['to-uuid']     = ka['to-uuid']     or nil
         ka['show-system'] = ka['show-system'] or false
         ka.format         = ka.format         or 'yaml'
         return ka
@@ -1295,6 +1425,8 @@ local function populate_arguments()
         { 'show-system', 'boolean' },
         { 'from',        'number'  },
         { 'to',          'number'  },
+        { 'from-uuid',   'string'  },
+        { 'to-uuid',     'string'  },
         { 'help',        'boolean' },
         { 'format',      'string'  },
         { 'replica',     'number+' },
