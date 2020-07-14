@@ -44,7 +44,7 @@ print(('debug.sourcefile() => %s; %s'):format(tostring(result), tostring(err)))
 assert(result == box.NULL, 'debug.sourcefile() returns box.NULL')
 assert(err == nil, 'debug.sourcefile() returns no error')
 
-local result, err = conn:call('debug.sourcedir')
+result, err = conn:call('debug.sourcedir')
 print(('debug.sourcedir() => %s; %s'):format(tostring(result), tostring(err)))
 assert(result == '.', 'debug.sourcedir() returns "."')
 assert(err == nil, 'debug.sourcedir() returns no error')
@@ -58,10 +58,10 @@ print('When running lua code from console')
 print('==================================')
 -- debug.sourcefile() returns cwd when running within console
 for _, test in ipairs(tests) do
-    local cmd = string.format('%s -e "%s; os.exit(0)"', TNTBIN, test)
-    print('Exec: '..cmd)
+    local cmdline = string.format('%s -e "%s; os.exit(0)"', TNTBIN, test)
+    print('Exec: '..cmdline)
     io.flush()
-    assert(os.execute(cmd) == 0, string.format('cmd: "%s" must execute successfully', cmd))
+    assert(os.execute(cmdline) == 0, string.format('cmd: "%s" must execute successfully', cmdline))
 end
 
 local fio = require('fio')
@@ -74,7 +74,7 @@ if not dirstat then
 end
 assert(dirstat:is_dir(), dirname..' must be a directory')
 
-local cmd = TNTBIN..' '..filename
+cmd = TNTBIN..' '..filename
 print('======================================')
 print('When running lua code from script file')
 print('======================================')

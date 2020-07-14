@@ -12,7 +12,7 @@ box.cfg{
     log="tarantool.log",
     memtx_memory=107374182,
 }
-function pcalltest()
+local function pcalltest()
     local ERRMSG = "module 'some_invalid_module' not found"
     local status, msg = pcall(require, 'some_invalid_module')
     if status == false and msg ~= nil and msg:match(ERRMSG) ~= nil then
@@ -27,10 +27,10 @@ local status, msg = xpcall(pcalltest, function(msg)
 end)
 print('pcall inside xpcall:', status, msg)
 
-local status, msg = pcall(function() error('some message') end)
+status, msg = pcall(function() error('some message') end)
 print('pcall with Lua error():', status, msg:match('some message'))
 
-local status, msg = pcall(function()
+status, msg = pcall(function()
     box.error(box.error.ILLEGAL_PARAMS, 'some message')
 end)
 print('pcall with box.error():', status, msg)

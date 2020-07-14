@@ -57,8 +57,8 @@ end
 
 --
 -- Execute a list of statements, show requests and responses.
-local function execute_statements(test, client, statements, name)
-    test:test(name, function(test)
+local function execute_statements(testcase, client, statements, name)
+    testcase:test(name, function(test)
         test:plan(2 * #statements)
 
         for _, stmt in ipairs(statements) do
@@ -75,8 +75,8 @@ end
 
 --
 -- Execute a statement and verify its response.
-local function execute_and_verify(test, client, input, exp_output, name)
-    test:test(name, function(test)
+local function execute_and_verify(testcase, client, input, exp_output, name)
+    testcase:test(name, function(test)
         test:plan(2)
 
         local res = client:write(input .. '\n')
@@ -149,15 +149,15 @@ test:plan(#cases)
 local server, client = start_console()
 
 for _, case in ipairs(cases) do
-    test:test(case.name, function(test)
-        test:plan(3)
+    test:test(case.name, function(testcase)
+        testcase:plan(3)
 
-        execute_statements(test, client, totable(case.prepare), 'prepare')
+        execute_statements(testcase, client, totable(case.prepare), 'prepare')
 
         set_lua_output(client, case.opts)
-        execute_and_verify(test, client, case.input, case.expected, 'run')
+        execute_and_verify(testcase, client, case.input, case.expected, 'run')
 
-        execute_statements(test, client, totable(case.cleanup), 'cleanup')
+        execute_statements(testcase, client, totable(case.cleanup), 'cleanup')
     end)
 end
 

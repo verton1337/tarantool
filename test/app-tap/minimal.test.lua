@@ -24,13 +24,13 @@ os.execute("tarantool ./script-args.lua 1 2 3")
 --
 -- LUA_PATH and LUA_CPATH argument handling
 --
-local script = io.open('script-path.lua', 'w')
+script = io.open('script-path.lua', 'w')
 script:write([[
 print(package.path)
 os.exit(0)
 ]])
 script:close()
-local script = io.open('script-cpath.lua', 'w')
+script = io.open('script-cpath.lua', 'w')
 script:write([[
 print(package.cpath)
 os.exit(0)

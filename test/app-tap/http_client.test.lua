@@ -22,8 +22,8 @@ local function merge(...)
     return res
 end
 
-local function start_server(test, sock_family, sock_addr)
-    test:diag("starting HTTP server on %s...", sock_addr)
+local function start_server(testcase, sock_family, sock_addr)
+    testcase:diag("starting HTTP server on %s...", sock_addr)
     local arg, url, opts
     if sock_family == 'AF_INET' then
         arg = string.format("--inet %s", sock_addr)
@@ -39,51 +39,51 @@ local function start_server(test, sock_family, sock_addr)
     local cmd = string.format("%s/test/app-tap/httpd.py %s",
                               TARANTOOL_SRC_DIR, arg)
     local server = io.popen(cmd)
-    test:is(server:read("*l"), "heartbeat", "server started")
-    test:diag("trying to connect to %s", url)
+    testcase:is(server:read("*l"), "heartbeat", "server started")
+    testcase:diag("trying to connect to %s", url)
     local r
-    for i=1,10 do
+    for _=1,10 do
         r = client.get(url, merge(opts, {timeout = 0.01}))
         if r.status == 200 then
             break
         end
         fiber.sleep(0.01)
     end
-    test:is(r.status, 200, "connection is ok")
+    testcase:is(r.status, 200, "connection is ok")
     if r.status ~= 200 then
         os.exit(1)
     end
     return server, url, opts
 end
 
-local function stop_server(test, server)
-    test:diag("stopping HTTP server")
+local function stop_server(testcase, server)
+    testcase:diag("stopping HTTP server")
     server:close()
 end
 
-local function test_http_client(test, url, opts)
-    test:plan(11)
+local function test_http_client(testcase, url, opts)
+    testcase:plan(11)
 
     -- gh-4136: confusing httpc usage error message
     local ok, err = pcall(client.request, client)
     local usage_err = "request(method, url[, body, [options]])"
-    test:is_deeply({ok, err:split(': ')[2]}, {false, usage_err},
+    testcase:is_deeply({ok, err:split(': ')[2]}, {false, usage_err},
                    "test httpc usage error")
 
-    test:isnil(rawget(_G, 'http'), "global namespace is not polluted");
-    test:isnil(rawget(_G, 'http.client'), "global namespace is not polluted");
+    testcase:isnil(rawget(_G, 'http'), "global namespace is not polluted");
+    testcase:isnil(rawget(_G, 'http.client'), "global namespace is not polluted");
     local r = client.get(url, opts)
-    test:is(r.status, 200, 'simple 200')
-    test:is(r.reason, 'Ok', '200 - Ok')
-    test:is(r.proto[1], 1, 'proto major http 1.1')
-    test:is(r.proto[2], 1, 'proto major http 1.1')
-    test:ok(r.body:match("hello") ~= nil, "body")
-    test:ok(tonumber(r.headers["content-length"]) > 0,
+    testcase:is(r.status, 200, 'simple 200')
+    testcase:is(r.reason, 'Ok', '200 - Ok')
+    testcase:is(r.proto[1], 1, 'proto major http 1.1')
+    testcase:is(r.proto[2], 1, 'proto major http 1.1')
+    testcase:ok(r.body:match("hello") ~= nil, "body")
+    testcase:ok(tonumber(r.headers["content-length"]) > 0,
         "content-length > 0")
-    test:is(client.get("http://localhost:1/").status, 595, 'cannot connect')
+    testcase:is(client.get("http://localhost:1/").status, 595, 'cannot connect')
 
-    local r = client.request('GET', url, nil, opts)
-    test:is(r.status, 200, 'request')
+    r = client.request('GET', url, nil, opts)
+    testcase:is(r.status, 200, 'request')
 
     -- XXX: enable after resolving of gh-4180: httpc: redirects
     -- are broken with libcurl-7.30 and older
@@ -118,36 +118,36 @@ end
 -- gh-3955: Check that httpc module doesn't redefine http headers
 --          set explicitly by the caller.
 --
-local function test_http_client_headers_redefine(test, url, opts)
-    test:plan(9)
-    local opts = table.deepcopy(opts)
+local function test_http_client_headers_redefine(testcase, url, opts)
+    testcase:plan(9)
+    opts = table.deepcopy(opts)
     -- Test defaults
     opts.headers = {['Connection'] = nil, ['Accept'] = nil}
     local r = client.post(url, nil, opts)
-    test:is(r.status, 200, 'simple 200')
-    test:is(r.headers['connection'], 'close', 'Default Connection header')
-    test:is(r.headers['accept'], '*/*', 'Default Accept header for POST request')
+    testcase:is(r.status, 200, 'simple 200')
+    testcase:is(r.headers['connection'], 'close', 'Default Connection header')
+    testcase:is(r.headers['accept'], '*/*', 'Default Accept header for POST request')
     -- Test that in case of conflicting headers, user variant is
     -- prefered
     opts.headers={['Connection'] = 'close'}
     opts.keepalive_idle = 2
     opts.keepalive_interval = 1
-    local r = client.get(url, opts)
-    test:is(r.status, 200, 'simple 200')
-    test:is(r.headers['connection'], 'close', 'Redefined Connection header')
-    test:is(r.headers['keep_alive'], 'timeout=2',
+    r = client.get(url, opts)
+    testcase:is(r.status, 200, 'simple 200')
+    testcase:is(r.headers['connection'], 'close', 'Redefined Connection header')
+    testcase:is(r.headers['keep_alive'], 'timeout=2',
             'Automatically set Keep-Alive header')
     -- Test that user-defined Connection and Acept headers
     -- are used
     opts.headers={['Connection'] = 'Keep-Alive', ['Accept'] = 'text/html'}
-    local r = client.get(url, opts)
-    test:is(r.status, 200, 'simple 200')
-    test:is(r.headers['accept'], 'text/html', 'Redefined Accept header')
-    test:is(r.headers['connection'], 'Keep-Alive', 'Redefined Connection header')
+    r = client.get(url, opts)
+    testcase:is(r.status, 200, 'simple 200')
+    testcase:is(r.headers['accept'], 'text/html', 'Redefined Accept header')
+    testcase:is(r.headers['connection'], 'Keep-Alive', 'Redefined Connection header')
 end
 
-local function test_cancel_and_errinj(test, url, opts)
-    test:plan(3)
+local function test_cancel_and_errinj(testcase, url, opts)
+    testcase:plan(3)
     local ch = fiber.channel(1)
     local http = client:new()
     local func  = function(fopts)
@@ -156,31 +156,30 @@ local function test_cancel_and_errinj(test, url, opts)
     local f = fiber.create(func, opts)
     f:cancel()
     local r = ch:get()
-    test:ok(r.status == 408 and string.find(r.reason, "Timeout"),
+    testcase:ok(r.status == 408 and string.find(r.reason, "Timeout"),
                     "After cancel fiber timeout is returned")
     r = http:get(url, merge(opts, {timeout = 0.0001}))
-    test:ok(r.status == 408 and string.find(r.reason, "Timeout"),
+    testcase:ok(r.status == 408 and string.find(r.reason, "Timeout"),
                                                        "Timeout check")
     local errinj = box.error.injection
     errinj.set('ERRINJ_HTTP_RESPONSE_ADD_WAIT', true)
     local topts = merge(opts, {timeout = 1200})
-    f = fiber.create(func, topts)
+    fiber.create(func, topts)
     r = ch:get()
-    test:is(r.status, 200, "No hangs in errinj")
+    testcase:is(r.status, 200, "No hangs in errinj")
     errinj.set('ERRINJ_HTTP_RESPONSE_ADD_WAIT', false)
 end
 
-local function test_post_and_get(test, url, opts)
-    test:plan(21)
+local function test_post_and_get(testcase, url, opts)
+    testcase:plan(21)
 
     local http = client.new()
-    test:ok(http ~= nil, "client is created")
+    testcase:ok(http ~= nil, "client is created")
 
     local headers = { header1 = "1", header2 = "2" }
     local my_body = { key = "value" }
     local json_body = json.encode(my_body)
     local responses = {}
-    local data = {a = 'b'}
     headers['Content-Type'] = 'application/json'
     local fibers = 7
     local ch = fiber.channel(fibers)
@@ -213,70 +212,69 @@ local function test_post_and_get(test, url, opts)
         responses.absent_get = http:get(url .. 'absent', opts)
         ch:put(1)
     end)
-    for i=1,fibers do
+    for _=1,fibers do
         ch:get()
     end
     local r = responses.good_get
-    test:is(r.status, 200, "GET: default http code page exists")
-    test:is(r.body, "hello world", "GET: default right body")
+    testcase:is(r.status, 200, "GET: default http code page exists")
+    testcase:is(r.body, "hello world", "GET: default right body")
 
     r = responses.get2
-    test:is(r.status, 200, "GET: http code page exists")
-    test:is(r.body, "abc", "GET: right body")
+    testcase:is(r.status, 200, "GET: http code page exists")
+    testcase:is(r.body, "abc", "GET: right body")
 
     r = responses.absent_get
-    test:is(r.status, 500, "GET: absent method http code page exists")
-    test:is(r.reason, 'Unknown', '500 - Unknown')
-    test:is(r.body, "No such method", "GET: absent method right body")
+    testcase:is(r.status, 500, "GET: absent method http code page exists")
+    testcase:is(r.reason, 'Unknown', '500 - Unknown')
+    testcase:is(r.body, "No such method", "GET: absent method right body")
 
     r = responses.empty_post
-    test:is(r.status, 200, "POST: good status")
-    test:ok(r.headers['header1'] == headers.header1 and
+    testcase:is(r.status, 200, "POST: good status")
+    testcase:ok(r.headers['header1'] == headers.header1 and
         r.headers['header2'] == headers.header2, "POST: good headers")
-    test:isnil(r.body, "POST: empty body")
+    testcase:isnil(r.body, "POST: empty body")
 
     r = responses.good_post
-    test:is(r.status, 200, "POST: good status")
-    test:ok(r.headers['header1'] == headers.header1 and
+    testcase:is(r.status, 200, "POST: good status")
+    testcase:ok(r.headers['header1'] == headers.header1 and
         r.headers['header2'] == headers.header2, "POST: good headers")
-    test:is(r.body, json_body, "POST: body")
+    testcase:is(r.body, json_body, "POST: body")
 
     r = responses.good_put
-    test:is(r.status, 200, "PUT: good status")
-    test:ok(r.headers['header'] == headers.header and
+    testcase:is(r.status, 200, "PUT: good status")
+    testcase:ok(r.headers['header'] == headers.header and
         r.headers['header2'] == headers.header2, "PUT: good headers")
 
     r = responses.bad_get
-    test:is(r.status, 404, "GET: http page not exists")
-    test:is(r.reason, 'Unknown', '404 - Unknown')
-    test:isnt(r.body:len(), 0, "GET: not empty body page not exists")
-    test:ok(string.find(r.body, "Not Found"),
+    testcase:is(r.status, 404, "GET: http page not exists")
+    testcase:is(r.reason, 'Unknown', '404 - Unknown')
+    testcase:isnt(r.body:len(), 0, "GET: not empty body page not exists")
+    testcase:ok(string.find(r.body, "Not Found"),
                 "GET: right body page not exists")
 
     local st = http:stat()
-    test:ok(st.sockets_added == st.sockets_deleted and
+    testcase:ok(st.sockets_added == st.sockets_deleted and
         st.active_requests == 0,
         "stats checking")
 end
 
-local function test_errors(test)
-    test:plan(2)
+local function test_errors(testcase)
+    testcase:plan(2)
     local http = client:new()
     local status, err = pcall(http.get, http, "htp://mail.ru")
-    test:ok(not status and string.find(json.encode(err),
+    testcase:ok(not status and string.find(json.encode(err),
                         "Unsupported protocol"),
                         "GET: exception on bad protocol")
     status, err = pcall(http.post, http, "htp://mail.ru", "")
-    test:ok(not status and string.find(json.encode(err),
+    testcase:ok(not status and string.find(json.encode(err),
                         "Unsupported protocol"),
                         "POST: exception on bad protocol")
-    local r = http:get("http://do_not_exist_8ffad33e0cb01e6a01a03d00089e71e5b2b7e9930dfcba.ru")
 end
 
 -- gh-3679 Check that opts.headers values can be strings only.
 -- gh-4281 Check that opts.headers can be a table and opts.headers
 -- keys can be strings only.
-local function test_request_headers(test, url, opts)
+local function test_request_headers(testcase, url, opts)
     local exp_err_bad_opts_headers = 'opts.headers should be a table'
     local exp_err_bad_key = 'opts.headers keys should be strings'
     local exp_err_bad_value = 'opts.headers values should be strings'
@@ -350,53 +348,53 @@ local function test_request_headers(test, url, opts)
             exp_err = exp_err_bad_value,
         },
     }
-    test:plan(#cases)
+    testcase:plan(#cases)
 
     local http = client:new()
 
     for _, case in ipairs(cases) do
-        local opts = merge(table.copy(opts), case.opts)
+        opts = merge(table.copy(opts), case.opts)
         local ok, err = pcall(http.get, http, url, opts)
         if case.postrequest_check ~= nil then
             case.postrequest_check(opts)
         end
         if case.exp_err == nil then
             -- expect success
-            test:ok(ok, case[1])
+            testcase:ok(ok, case[1])
         else
             -- expect fail
             assert(type(err) == 'string')
             err = err:gsub('^builtin/[a-z._]+.lua:[0-9]+: ', '')
-            test:is_deeply({ok, err}, {false, case.exp_err}, case[1])
+            testcase:is_deeply({ok, err}, {false, case.exp_err}, case[1])
         end
     end
 end
 
-local function test_headers(test, url, opts)
-    test:plan(21)
+local function test_headers(testcase, url, opts)
+    testcase:plan(21)
     local http = client:new()
     local r = http:get(url .. 'headers', opts)
-    test:is(type(r.headers["set-cookie"]), 'string', "set-cookie check")
-    test:ok(r.headers["set-cookie"]:match("likes=cheese"), "set-cookie check")
-    test:ok(r.headers["set-cookie"]:match("age = 17"), "set-cookie check")
-    test:is(r.headers["content-type"], "application/json", "content-type check")
-    test:is(r.headers["my_header"], "value1,value2", "other header check")
-    test:isnil(r.headers["11200ok"], "http status line not included in headers")
-    test:is(r.cookies["likes"][1], "cheese", "cookie value check")
-    test:ok(r.cookies["likes"][2][1]:match("Expires"), "cookie option check")
-    test:ok(r.cookies["likes"][2][3]:match("HttpOnly"), "cookie option check")
-    test:is(r.cookies["age"][1], "17", "cookie value check")
-    test:is(#r.cookies["age"][2], 1, "cookie option check")
-    test:is(r.cookies["age"][2][1], "Secure", "cookie option check")
-    test:ok(r.cookies["good_name"] ~= nil , "cookie name check")
-    test:ok(r.cookies["bad@name"] == nil , "cookie name check")
-    test:ok(r.cookies["badname"] == nil , "cookie name check")
-    test:ok(r.cookies["badcookie"] == nil , "cookie name check")
-    test:isnil(r.headers["very_very_very_long_headers_name1"], "no long header name")
-    test:is(r.headers["very_very_very_long_headers_name"], "true", "truncated name")
+    testcase:is(type(r.headers["set-cookie"]), 'string', "set-cookie check")
+    testcase:ok(r.headers["set-cookie"]:match("likes=cheese"), "set-cookie check")
+    testcase:ok(r.headers["set-cookie"]:match("age = 17"), "set-cookie check")
+    testcase:is(r.headers["content-type"], "application/json", "content-type check")
+    testcase:is(r.headers["my_header"], "value1,value2", "other header check")
+    testcase:isnil(r.headers["11200ok"], "http status line not included in headers")
+    testcase:is(r.cookies["likes"][1], "cheese", "cookie value check")
+    testcase:ok(r.cookies["likes"][2][1]:match("Expires"), "cookie option check")
+    testcase:ok(r.cookies["likes"][2][3]:match("HttpOnly"), "cookie option check")
+    testcase:is(r.cookies["age"][1], "17", "cookie value check")
+    testcase:is(#r.cookies["age"][2], 1, "cookie option check")
+    testcase:is(r.cookies["age"][2][1], "Secure", "cookie option check")
+    testcase:ok(r.cookies["good_name"] ~= nil , "cookie name check")
+    testcase:ok(r.cookies["bad@name"] == nil , "cookie name check")
+    testcase:ok(r.cookies["badname"] == nil , "cookie name check")
+    testcase:ok(r.cookies["badcookie"] == nil , "cookie name check")
+    testcase:isnil(r.headers["very_very_very_long_headers_name1"], "no long header name")
+    testcase:is(r.headers["very_very_very_long_headers_name"], "true", "truncated name")
     opts["max_header_name_length"] = 64
-    local r = http:get(url .. 'headers', opts)
-    test:is(r.headers["very_very_very_long_headers_name1"], "true", "truncated max_header_name_length")
+    r = http:get(url .. 'headers', opts)
+    testcase:is(r.headers["very_very_very_long_headers_name1"], "true", "truncated max_header_name_length")
     opts["max_header_name_length"] = nil
 
     -- Send large headers.
@@ -406,26 +404,25 @@ local function test_headers(test, url, opts)
     -- "${hname}: ${hvalue}" is 8192 bytes length
     local hvalue = string.rep('x', MAX_HEADER_NAME - hname:len() - 2)
     local headers = {[hname] = hvalue}
-    local r = http:post(url, nil, merge(opts, {headers = headers}))
-    test:is(r.headers[hname], hvalue, '8192 bytes header: success')
+    r = http:post(url, nil, merge(opts, {headers = headers}))
+    testcase:is(r.headers[hname], hvalue, '8192 bytes header: success')
 
     -- "${hname}: ${hvalue}" is 8193 bytes length
     local exp_err = 'header is too large'
-    local hvalue = string.rep('x', MAX_HEADER_NAME - hname:len() - 1)
-    local headers = {[hname] = hvalue}
+    hvalue = string.rep('x', MAX_HEADER_NAME - hname:len() - 1)
+    headers = {[hname] = hvalue}
     local ok, err = pcall(http.post, http, url, nil,
                           merge(opts, {headers = headers}))
-    test:is_deeply({ok, tostring(err)}, {false, exp_err},
+    testcase:is_deeply({ok, tostring(err)}, {false, exp_err},
                    '8193 KiB header: error')
 end
 
-local function test_special_methods(test, url, opts)
-    test:plan(14)
+local function test_special_methods(testcase, url, opts)
+    testcase:plan(14)
     local http = client.new()
     local responses = {}
     local fibers = 7
     local ch = fiber.channel(fibers)
-    local _
     fiber.create(function()
         responses.patch_data = http:patch(url, "{\"key\":\"val\"}", opts)
         ch:put(1)
@@ -454,39 +451,35 @@ local function test_special_methods(test, url, opts)
         responses.custom_data = http:request("CUSTOM", url, nil, opts)
         ch:put(1)
     end)
-    for i = 1, fibers do
+    for _ = 1, fibers do
         ch:get()
     end
 
-    test:is(responses.patch_data.status, 200, "HTTP:PATCH request")
-    test:ok(json.decode(responses.patch_data.body).key == "val",
+    testcase:is(responses.patch_data.status, 200, "HTTP:PATCH request")
+    testcase:ok(json.decode(responses.patch_data.body).key == "val",
         "HTTP:PATCH request content")
-    test:is(responses.delete_data.status, 200, "HTTP:DELETE request")
-    test:ok(responses.delete_data.headers.method == "DELETE",
+    testcase:is(responses.delete_data.status, 200, "HTTP:DELETE request")
+    testcase:ok(responses.delete_data.headers.method == "DELETE",
         "HTTP:DELETE request content")
-    test:is(responses.options_data.status, 200, "HTTP:OPTIONS request")
-    test:ok(responses.options_data.headers.method == "OPTIONS",
+    testcase:is(responses.options_data.status, 200, "HTTP:OPTIONS request")
+    testcase:ok(responses.options_data.headers.method == "OPTIONS",
         "HTTP:OPTIONS request content")
-    test:is(responses.head_data.status, 200, "HTTP:HEAD request code")
-    test:ok(responses.head_data.headers.method == "HEAD",
+    testcase:is(responses.head_data.status, 200, "HTTP:HEAD request code")
+    testcase:ok(responses.head_data.headers.method == "HEAD",
         "HTTP:HEAD request content")
-    test:is(responses.connect_data.status, 200, "HTTP:CONNECT request")
-    test:ok(responses.connect_data.headers.method == "CONNECT",
+    testcase:is(responses.connect_data.status, 200, "HTTP:CONNECT request")
+    testcase:ok(responses.connect_data.headers.method == "CONNECT",
         "HTTP:OPTIONS request content")
-    test:is(responses.trace_data.status, 200, "HTTP:TRACE request")
-    test:ok(responses.trace_data.headers.method == "TRACE",
+    testcase:is(responses.trace_data.status, 200, "HTTP:TRACE request")
+    testcase:ok(responses.trace_data.headers.method == "TRACE",
         "HTTP:TRACE request content")
-    test:is(responses.custom_data.status, 400, "HTTP:CUSTOM request")
-    test:ok(responses.custom_data.headers.method == "CUSTOM",
+    testcase:is(responses.custom_data.status, 400, "HTTP:CUSTOM request")
+    testcase:ok(responses.custom_data.headers.method == "CUSTOM",
         "HTTP:CUSTOM request content")
 end
 
-local function test_concurrent(test, url, opts)
-    test:plan(3)
-    local http = client.new()
-    local headers = { my_header = "1", my_header2 = "2" }
-    local my_body = { key = "value" }
-    local json_body = json.encode(my_body)
+local function test_concurrent(testcase, url, opts)
+    testcase:plan(3)
     local num_test = 10
     local num_load = 10
     local curls   = { }
@@ -497,7 +490,7 @@ local function test_concurrent(test, url, opts)
         headers["My-header" .. i] = "my-value"
     end
 
-    for i = 1, num_test do
+    for _ = 1, num_test do
         table.insert(curls, {
             url = url,
             http = client.new(),
@@ -515,7 +508,7 @@ local function test_concurrent(test, url, opts)
     -- Creating concurrent clients
     for i=1,num_test do
         local obj = curls[i]
-        for j=1,num_load do
+        for _=1,num_load do
             fiber.create(function()
                 local r = obj.http:post(obj.url, obj.body, merge(opts, {
                     headers = obj.headers,
@@ -540,13 +533,11 @@ local function test_concurrent(test, url, opts)
     end
     local ok_sockets_added = true
     local ok_active = true
-    local ok_timeout = true
     local ok_req = true
 
     -- Join test
     local rest = num_test
     while true do
-        local ticks = 0
         for i = 1, num_load do
             local obj = curls[i]
             -- checking that stats in concurrent are ok
@@ -577,23 +568,23 @@ local function test_concurrent(test, url, opts)
             break
         end
     end
-    test:is(ok_req, true, "All requests are ok")
-    test:ok(ok_sockets_added, "free sockets")
-    test:ok(ok_active, "no active requests")
+    testcase:is(ok_req, true, "All requests are ok")
+    testcase:ok(ok_sockets_added, "free sockets")
+    testcase:ok(ok_active, "no active requests")
 end
 
-function run_tests(test, sock_family, sock_addr)
-    test:plan(11)
-    local server, url, opts = start_server(test, sock_family, sock_addr)
-    test:test("http.client", test_http_client, url, opts)
-    test:test("http.client headers redefine", test_http_client_headers_redefine,
+local function run_tests(testcase, sock_family, sock_addr)
+    testcase:plan(11)
+    local server, url, opts = start_server(testcase, sock_family, sock_addr)
+    testcase:test("http.client", test_http_client, url, opts)
+    testcase:test("http.client headers redefine", test_http_client_headers_redefine,
               url, opts)
-    test:test("cancel and errinj", test_cancel_and_errinj, url .. 'long_query', opts)
-    test:test("basic http post/get", test_post_and_get, url, opts)
-    test:test("errors", test_errors)
-    test:test("request_headers", test_request_headers, url, opts)
-    test:test("headers", test_headers, url, opts)
-    test:test("special methods", test_special_methods, url, opts)
+    testcase:test("cancel and errinj", test_cancel_and_errinj, url .. 'long_query', opts)
+    testcase:test("basic http post/get", test_post_and_get, url, opts)
+    testcase:test("errors", test_errors)
+    testcase:test("request_headers", test_request_headers, url, opts)
+    testcase:test("headers", test_headers, url, opts)
+    testcase:test("special methods", test_special_methods, url, opts)
     if sock_family == 'AF_UNIX' and jit.os ~= "Linux" then
         --
         -- BSD-based operating systems (including OS X) will fail
@@ -604,25 +595,25 @@ function run_tests(test, sock_family, sock_addr)
         -- however, is fine - instead of returning ECONNEREFUSED
         -- it will suspend connect() until backlog is processed.
         --
-        test:skip("concurrent")
+        testcase:skip("concurrent")
     else
-        test:test("concurrent", test_concurrent, url, opts)
+        testcase:test("concurrent", test_concurrent, url, opts)
     end
-    stop_server(test, server)
+    stop_server(testcase, server)
 end
 
 test:plan(2)
 
-test:test("http over AF_INET", function(test)
+test:test("http over AF_INET", function(testcase)
     local s = socketlib('AF_INET', 'SOCK_STREAM', 0)
     s:bind('127.0.0.1', 0)
     local host = s:name().host
     local port = s:name().port
     s:close()
-    run_tests(test, 'AF_INET', string.format("%s:%d", host, port))
+    run_tests(testcase, 'AF_INET', string.format("%s:%d", host, port))
 end)
 
-test:test("http over AF_UNIX", function(test)
+test:test("http over AF_UNIX", function(testcase)
     local path = os.tmpname()
     os.remove(path)
     local status = pcall(client.get, 'http://localhost/', {unix_socket = path})
@@ -630,7 +621,7 @@ test:test("http over AF_UNIX", function(test)
         -- Unix domain sockets are not supported, skip the test.
         return
     end
-    run_tests(test, 'AF_UNIX', path)
+    run_tests(testcase, 'AF_UNIX', path)
     os.remove(path)
 end)
 

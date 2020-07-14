@@ -90,12 +90,13 @@ local function test_trivial_echo_output(test)
     test:ok(is_dead, 'the process is killed after close()')
 
     -- Verify that :close() is idempotent.
-    local res, err = ph:close()
+    res, err = ph:close()
     test:is_deeply({res, err}, {true, nil}, 'close() is idempotent')
 
     -- Sending a signal using a closed handle gives an error.
     local exp_err = 'popen: attempt to operate on a closed handle'
-    local ok, err = pcall(ph.signal, ph, popen.signal.SIGTERM)
+    local ok
+    ok, err = pcall(ph.signal, ph, popen.signal.SIGTERM)
     test:is_deeply({ok, err.type, tostring(err)},
                    {false, 'IllegalParams', exp_err},
                    'signal() on closed handle gives an error')
@@ -195,28 +196,28 @@ local function test_read_write(test)
     test:is_deeply({res, err}, {true, nil}, 'write() succeeds')
     local ok = ph:shutdown({stdin = true})
     test:ok(ok, 'shutdown() succeeds')
-    local res, err = ph:read()
+    res, err = ph:read()
     test:is_deeply({res, err}, {payload, nil}, 'read() from stdout succeeds')
 
     ph:close()
 
     -- The script copies data from stdin to stderr.
-    local script = 'prompt=""; read -r prompt; printf "$prompt" 1>&2'
-    local ph = popen.shell(script, 'Rw')
+    script = 'prompt=""; read -r prompt; printf "$prompt" 1>&2'
+    ph = popen.shell(script, 'Rw')
 
     -- Write to stdin, read from stderr.
-    local res, err = ph:write(payload .. '\n')
+    res, err = ph:write(payload .. '\n')
     test:is_deeply({res, err}, {true, nil}, 'write() succeeds')
-    local ok = ph:shutdown({stdin = true})
+    ok = ph:shutdown({stdin = true})
     test:ok(ok, 'shutdown() succeeds')
-    local res, err = ph:read({stderr = true})
+    res, err = ph:read({stderr = true})
     test:is_deeply({res, err}, {payload, nil}, 'read() from stderr succeeds')
 
     ph:close()
 
     -- The same script: copy from stdin to stderr.
-    local script = 'prompt=""; read -r prompt; printf "$prompt" 1>&2'
-    local ph = popen.shell(script, 'Rw')
+    script = 'prompt=""; read -r prompt; printf "$prompt" 1>&2'
+    ph = popen.shell(script, 'Rw')
 
     -- Ensure that read waits for data and does not return
     -- prematurely.
@@ -226,7 +227,7 @@ local function test_read_write(test)
         res_w, err_w = ph:write(payload .. '\n')
         ph:shutdown({stdin = true})
     end)
-    local res, err = ph:read({stderr = true})
+    res, err = ph:read({stderr = true})
     test:is_deeply({res_w, err_w}, {true, nil}, 'write() succeeds')
     test:is_deeply({res, err}, {payload, nil}, 'read() from stderr succeeds')
 
@@ -251,10 +252,10 @@ local function test_read_timeout(test)
                    'timeout error')
 
     -- Write and read after the timeout error.
-    local res, err = ph:write(payload .. '\n')
+    res, err = ph:write(payload .. '\n')
     test:is_deeply({res, err}, {true, nil}, 'write data')
     ph:shutdown({stdin = true})
-    local res, err = ph:read()
+    res, err = ph:read()
     test:is_deeply({res, err}, {payload, nil}, 'read data')
 
     ph:close()
@@ -316,13 +317,13 @@ local function test_shutdown(test)
     test:plan(9)
 
     -- Verify std* status.
-    local function test_stream_status(test, ph, pstream, exp_pstream)
-        test:plan(6)
+    local function test_stream_status(testcase, ph, pstream, exp_pstream)
+        testcase:plan(6)
         local info = ph:info()
         for _, s in ipairs({'stdin', 'stdout', 'stderr'}) do
             local exp_status = s == pstream and exp_pstream or nil
-            test:is(ph[s], exp_status, ('%s open'):format(s))
-            test:is(info[s], exp_status, ('%s open'):format(s))
+            testcase:is(ph[s], exp_status, ('%s open'):format(s))
+            testcase:is(info[s], exp_status, ('%s open'):format(s))
         end
     end
 
