@@ -169,3 +169,14 @@ add_library(box STATIC
 target_link_libraries(box box_error tuple stat xrow xlog vclock crc32 scramble
                       sql ${common_libraries})
 add_dependencies(box build_bundled_libs)
+
+if(ENABLE_FUZZER)
+    set(TestName "test_iproto")
+    add_executable(${TestName} ${TestName}.c)
+    set_target_properties(${TestName}
+            PROPERTIES
+            COMPILE_FLAGS "-fsanitize=fuzzer,address -g -O1"
+            LINK_FLAGS "-fsanitize=fuzzer,address")
+    target_link_libraries(${TestName} PRIVATE box)
+    set_target_properties(${TestName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TESTING_OUTPUT_DIRECTORY}")
+endif()
