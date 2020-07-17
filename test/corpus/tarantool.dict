@@ -1,0 +1,24 @@
+# Lines starting with '#' and empty lines are ignored.
+
+##################
+# Lua
+###################
+"box"
+"execute"
+"prepare"
+"require"
+"load"
+"decode"
+"encode"
+"cfg"
+
+##################
+# Modules
+##################
+"json"
+"sql"
+"uri"
+"msgpack"
+
+"set"
+"language"
