@@ -595,12 +595,11 @@ local function stop()
         return 1
     end
 
+    fio.unlink(pid_file)
     if ffi.C.kill(pid, 15) < 0 then
         log.error("Can't kill process %d: %s", pid, errno.strerror())
-        fio.unlink(pid_file)
         return 1
     end
-
     return 0
 end
 
