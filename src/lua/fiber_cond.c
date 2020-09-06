@@ -95,8 +95,7 @@ luaT_fiber_cond_wait(struct lua_State *L)
 		}
 	}
 	rc = fiber_cond_wait_timeout(e, timeout);
-	if (rc != 0)
-		luaL_testcancel(L);
+	luaL_testcancel(L);
 	lua_pushboolean(L, rc == 0);
 	return 1;
 }

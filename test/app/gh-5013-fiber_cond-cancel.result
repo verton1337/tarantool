@@ -1,0 +1,46 @@
+-- test-run result file version 2
+fiber = require('fiber')
+ | ---
+ | ...
+test_run = require('test_run').new()
+ | ---
+ | ...
+
+err = nil
+ | ---
+ | ...
+
+test_run:cmd("setopt delimiter ';'")
+ | ---
+ | - true
+ | ...
+function test()
+    _, err = pcall(function() fiber.cond():wait() end)
+end;
+ | ---
+ | ...
+test_run:cmd("setopt delimiter ''");
+ | ---
+ | - true
+ | ...
+
+f = fiber.new(test)
+ | ---
+ | ...
+fiber.yield()
+ | ---
+ | ...
+f:cancel()
+ | ---
+ | ...
+fiber.yield()
+ | ---
+ | ...
+f
+ | ---
+ | - the fiber is dead
+ | ...
+err
+ | ---
+ | - fiber is cancelled
+ | ...
