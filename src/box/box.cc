@@ -74,7 +74,7 @@
 #include "sql.h"
 #include "systemd.h"
 #include "call.h"
-#include "func.h"
+#include "module_cache.h"
 #include "sequence.h"
 #include "sql_stmt_cache.h"
 #include "msgpack.h"
