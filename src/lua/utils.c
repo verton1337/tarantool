@@ -508,6 +508,11 @@ lua_field_try_serialize(struct lua_State *L, struct luaL_serializer *cfg,
 			diag_set(LuajitError, lua_tostring(L, -1));
 			return -1;
 		}
+		if (lua_topointer(L, -2) == lua_topointer(L, -1)) {
+			diag_set(LuajitError, "Bad __serialize function. It "
+				 "can't return the same value.");
+			return -1;
+		}
 		if (luaL_tofield(L, cfg, NULL, -1, field) != 0)
 			return -1;
 		lua_replace(L, idx);
