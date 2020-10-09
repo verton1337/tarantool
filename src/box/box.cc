@@ -75,6 +75,7 @@
 #include "systemd.h"
 #include "call.h"
 #include "module_cache.h"
+#include "lua/cbox.h"
 #include "sequence.h"
 #include "sql_stmt_cache.h"
 #include "msgpack.h"
@@ -2246,6 +2247,7 @@ box_free(void)
 		tuple_free();
 		port_free();
 #endif
+		cbox_free();
 		iproto_free();
 		replication_free();
 		sequence_free();
@@ -2645,6 +2647,9 @@ box_init(void)
 	session_init();
 
 	if (module_init() != 0)
+		diag_raise();
+
+	if (cbox_init() != 0)
 		diag_raise();
 
 	if (tuple_init(lua_hash) != 0)
