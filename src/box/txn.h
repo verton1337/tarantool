@@ -568,11 +568,7 @@ static inline void
 txn_commit_ro_stmt(struct txn *txn)
 {
 	assert(txn == in_txn());
-	if (txn) {
-		/* nothing to do */
-	} else {
-		fiber_gc();
-	}
+	(void)txn;
 }
 
 /**

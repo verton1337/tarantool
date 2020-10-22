@@ -228,6 +228,8 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 	mp_tuple_assert(key, key_end);
 	struct space *space;
 	struct index *index;
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	if (check_index(space_id, index_id, &space, &index) != 0)
 		return -1;
 	if (!index->def->opts.is_unique) {
@@ -246,6 +248,8 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	/* Count statistics. */
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
 	if (*result != NULL)
@@ -261,6 +265,8 @@ box_index_min(uint32_t space_id, uint32_t index_id, const char *key,
 	mp_tuple_assert(key, key_end);
 	struct space *space;
 	struct index *index;
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	if (check_index(space_id, index_id, &space, &index) != 0)
 		return -1;
 	if (index->def->type != TREE) {
@@ -280,6 +286,8 @@ box_index_min(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
@@ -293,6 +301,8 @@ box_index_max(uint32_t space_id, uint32_t index_id, const char *key,
 	assert(result != NULL);
 	struct space *space;
 	struct index *index;
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	if (check_index(space_id, index_id, &space, &index) != 0)
 		return -1;
 	if (index->def->type != TREE) {
@@ -312,6 +322,8 @@ box_index_max(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
@@ -331,6 +343,8 @@ box_index_count(uint32_t space_id, uint32_t index_id, int type,
 	enum iterator_type itype = (enum iterator_type) type;
 	struct space *space;
 	struct index *index;
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	if (check_index(space_id, index_id, &space, &index) != 0)
 		return -1;
 	uint32_t part_count = mp_decode_array(&key);
@@ -346,6 +360,8 @@ box_index_count(uint32_t space_id, uint32_t index_id, int type,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	return count;
 }
 
@@ -367,6 +383,8 @@ box_index_iterator(uint32_t space_id, uint32_t index_id, int type,
 	enum iterator_type itype = (enum iterator_type) type;
 	struct space *space;
 	struct index *index;
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	if (check_index(space_id, index_id, &space, &index) != 0)
 		return NULL;
 	assert(mp_typeof(*key) == MP_ARRAY); /* checked by Lua */
@@ -383,6 +401,8 @@ box_index_iterator(uint32_t space_id, uint32_t index_id, int type,
 		return NULL;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
 	return it;
 }

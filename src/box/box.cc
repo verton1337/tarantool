@@ -1388,7 +1388,8 @@ box_select(uint32_t space_id, uint32_t index_id,
 	   struct port *port)
 {
 	(void)key_end;
-
+	struct region *region = &fiber()->gc;
+	size_t used = region_used(region);
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
 
 	if (iterator < 0 || iterator >= iterator_type_MAX) {
@@ -1453,6 +1454,8 @@ box_select(uint32_t space_id, uint32_t index_id,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn);
+	if (txn == NULL)
+		region_truncate(region, used);
 	return 0;
 }
 
