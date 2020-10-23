@@ -496,6 +496,10 @@ static int
 lua_field_try_serialize(struct lua_State *L, struct luaL_serializer *cfg,
 			int idx, struct luaL_field *field)
 {
+	if (idx > SERIALIZER) {
+		diag_set(LuajitError, LUAL_SERIALIZE " generates too deep "
+			 "recursion");
+	}
 	if (idx > SERIALIZER_CRITICAL_RECURSION_DEPTH) {
 		diag_set(LuajitError, LUAL_SERIALIZE " generates too deep "
 			 "recursion");

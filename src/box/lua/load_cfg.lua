@@ -104,6 +104,7 @@ local default_cfg = {
     feedback_interval     = 3600,
     net_msg_max           = 768,
     sql_cache_size        = 5 * 1024 * 1024,
+    serializer_max_recursion_depth = 256
 }
 
 -- cfg variables which are covered by modules
