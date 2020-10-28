@@ -78,6 +78,117 @@ enum {
 	MAX_TUPLE_SIZE = 1 * 1024 * 1024,
 };
 
+enum {
+	/* Space _schema recover complete index */
+	SCHEMA_RECOVER_COMPLETE_ID,
+	/* Space _collation recover complete index */
+	COLLATION_RECOVER_COMPLETE_ID,
+	/* Space _space recover complete index */
+	SPACE_RECOVER_COMPLETE_ID,
+	/* Space _index recover complete index */
+	INDEX_RECOVER_COMPLETE_ID,
+	/* Space _func recover complete index */
+	FUNC_RECOVER_COMPLETE_ID,
+	/* Space _user recover complete index */
+	USER_RECOVER_COMPLETE_ID,
+	/* Space _priv recover complete index */
+	PRIV_RECOVER_COMPLETE_ID,
+	/* Space _cluster recover complete index */
+	CLUSTER_RECOVER_COMPLETE_ID,
+	/* End of enum */
+	RECOVER_COMPETE_MAX_ID,
+};
+
+static bool spaces[RECOVER_COMPETE_MAX_ID];
+
+/*
+ * Mark that one of the required system spaces,
+ * without which it is impossible to boot, has been restored
+ */
+static void mark_system_space_recovery_complete(uint32_t space_id)
+{
+	unsigned char id;
+
+	switch (space_id) {
+	case BOX_SCHEMA_ID:
+		id = SCHEMA_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_COLLATION_ID:
+		id = COLLATION_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_SPACE_ID:
+		id = SPACE_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_INDEX_ID:
+		id = INDEX_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_FUNC_ID:
+		id = FUNC_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_USER_ID:
+		id = USER_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_PRIV_ID:
+		id = PRIV_RECOVER_COMPLETE_ID;
+		break;
+	case BOX_CLUSTER_ID:
+		id = CLUSTER_RECOVER_COMPLETE_ID;
+		break;
+	default:
+		return;
+	}
+
+	assert(id < RECOVER_COMPETE_MAX_ID);
+	spaces[id] = true;
+}
+
+static void print_recovery_error(unsigned int id)
+{
+	switch (id) {
+	case SCHEMA_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _schema space");
+		break;
+	case COLLATION_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _collation space");
+		break;
+	case SPACE_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _space space");
+		break;
+	case INDEX_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _index space");
+		break;
+	case FUNC_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _func space");
+		break;
+	case USER_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _user space");
+		break;
+	case PRIV_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _priv space");
+		break;
+	case CLUSTER_RECOVER_COMPLETE_ID:
+		say_error("Error during recovery _cluster space");
+		break;
+	default:
+		return;
+	}
+}
+
+/*
+ * Check that all necessary system spaces was recovered from snapshot
+ */
+static bool check_system_spaces_recovery_complete(void)
+{
+	bool rc = true;
+	for (unsigned int i = 0; i < RECOVER_COMPETE_MAX_ID; i++) {
+		if (!spaces[i]) {
+			print_recovery_error(i);
+			rc = false;
+		}
+	}
+	return rc;
+}
+
 static int
 memtx_end_build_primary_key(struct space *space, void *param)
 {
@@ -159,8 +270,16 @@ memtx_engine_recover_snapshot(struct memtx_engine *memtx,
 	/* Process existing snapshot */
 	say_info("recovery start");
 	int64_t signature = vclock_sum(vclock);
-	const char *filename = xdir_format_filename(&memtx->snap_dir,
+	char filename[PATH_MAX];
+	const char *name = xdir_format_filename(&memtx->snap_dir,
 						    signature, NONE);
+	/*
+	 * we need to save name in local variable because
+	 * xdir_format_filename allocate memory in static buffer
+	 * which will be overwritten later
+	 */
+	strncpy(filename, name, PATH_MAX - 1);
+	filename[PATH_MAX - 1] = '\0';
 
 	say_info("recovering from `%s'", filename);
 	struct xlog_cursor cursor;
@@ -191,13 +310,20 @@ memtx_engine_recover_snapshot(struct memtx_engine *memtx,
 	if (rc < 0)
 		return -1;
 
+	if (!check_system_spaces_recovery_complete())
+		panic("Error during recovery one of system spaces");
+
 	/**
 	 * We should never try to read snapshots with no EOF
 	 * marker - such snapshots are very likely corrupted and
 	 * should not be trusted.
 	 */
-	if (!xlog_cursor_is_eof(&cursor))
-		panic("snapshot `%s' has no EOF marker", filename);
+	if (!xlog_cursor_is_eof(&cursor)) {
+		if (!memtx->force_recovery)
+			panic("snapshot `%s' has no EOF marker", filename);
+		else
+			say_error("snapshot `%s' has no EOF marker", filename);
+	}
 
 	return 0;
 }
@@ -261,6 +387,8 @@ memtx_engine_recover_snapshot_row(struct memtx_engine *memtx,
 	 * sure it's not freed along here.
 	 */
 	fiber_gc();
+	if (rc == 0)
+		mark_system_space_recovery_complete(request.space_id);
 	return rc;
 rollback_stmt:
 	txn_rollback_stmt(txn);
