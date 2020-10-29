@@ -623,11 +623,27 @@ index_get(struct index *index, const char *key,
 	return index->vtab->get(index, key, part_count, result);
 }
 
+/**
+ * Test if \a new_tuple is excluded from \a index
+ * (happens if exclude_null=true for some index part
+ * and this part is null in the tuple)
+ * If \a old_tuple != NULL and \a new_tuple is excluded, new_tuple becomes
+ * NULL to indicate that it needs to be deleted
+ * @param index
+ * @param old_tuple
+ * @param new_tuple
+ */
+bool index_tuple_is_excluded(struct index *index, struct tuple **old_tuple,
+		struct tuple **new_tuple);
+
 static inline int
 index_replace(struct index *index, struct tuple *old_tuple,
 	      struct tuple *new_tuple, enum dup_replace_mode mode,
 	      struct tuple **result)
 {
+	if (index_tuple_is_excluded(index, &old_tuple, &new_tuple)) {
+		return 0;
+	}
 	return index->vtab->replace(index, old_tuple, new_tuple, mode, result);
 }
 

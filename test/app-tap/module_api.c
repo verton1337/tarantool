@@ -502,7 +502,7 @@ key_part_padding_offset(void)
 static uint32_t
 key_part_def_known_flags(void)
 {
-	return BOX_KEY_PART_DEF_IS_NULLABLE;
+	return BOX_KEY_PART_DEF_IS_NULLABLE | BOX_KEY_PART_DEF_EXCLUDE_NULL;
 }
 
 /**
@@ -1075,7 +1075,7 @@ test_key_def_merge(struct lua_State *L)
 
 	/* Non-conventional prerequisite: list of known flags. */
 	uint32_t known_flags = key_part_def_known_flags();
-	assert(known_flags == BOX_KEY_PART_DEF_IS_NULLABLE);
+	assert(known_flags == (BOX_KEY_PART_DEF_IS_NULLABLE | BOX_KEY_PART_DEF_EXCLUDE_NULL));
 	(void)known_flags;
 
 	/* Non-conventional prerequisite: certain defaults. */
