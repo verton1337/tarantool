@@ -1374,10 +1374,22 @@ box_process1(struct request *request, box_tuple_t **result)
 	struct space *space = space_cache_find(request->space_id);
 	if (space == NULL)
 		return -1;
+	struct engine *engine = (struct engine *)space->engine;
 	if (!space_is_temporary(space) &&
 	    space_group_id(space) != GROUP_LOCAL &&
 	    box_check_writable() != 0)
 		return -1;
+
+	if(engine && !strcmp(engine->name, "memtx")) {
+		struct memtx_engine *memtx_engine = (struct memtx_engine *)engine;
+		if(memtx_engine->state < MEMTX_FINAL_RECOVERY) {
+			say_error("Unable to insert/replace/upsert during snapshot recovery, \
+				   use box.runtime.check_recover_complete() to check that \
+				   snapshot recovery was completed");
+			return -1;
+		}
+	}
+
 	return box_process_rw(request, space, result);
 }
 

@@ -255,6 +255,16 @@ lbox_runtime_info(struct lua_State *L)
 }
 
 static int
+lbox_runtime_check_recover_complete(struct lua_State *L)
+{
+	struct memtx_engine *memtx;
+	memtx = (struct memtx_engine *)engine_by_name("memtx");
+	lua_pushboolean(L, (memtx ?
+		(memtx->state < MEMTX_FINAL_RECOVERY ? 0 : 1) : 0));
+	return 1;
+}
+
+static int
 lbox_slab_check(MAYBE_UNUSED struct lua_State *L)
 {
 	struct memtx_engine *memtx;
@@ -290,6 +300,10 @@ box_lua_slab_init(struct lua_State *L)
 
 	lua_pushstring(L, "info");
 	lua_pushcfunction(L, lbox_runtime_info);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "check_recover_complete");
+	lua_pushcfunction(L, lbox_runtime_check_recover_complete);
 	lua_settable(L, -3);
 
 	lua_settable(L, -3); /* box.runtime */

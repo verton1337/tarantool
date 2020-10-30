@@ -1,0 +1,28 @@
+
+-- write data recover from latest snapshot
+env = require('test_run')
+test_run = env.new()
+
+test_run:cmd('create server test with script="engine/insert_during_snapshot_recovery.lua"')
+test_run:cmd('start server test with args="none"')
+test_run:cmd('switch test')
+engine = test_run:get_cfg('engine')
+s1 = box.schema.space.create('temp', {temporary=true}, {engine = engine})
+i1 = s1:create_index('test')
+s2 = box.schema.space.create('loc', {is_local=true}, {engine = engine})
+i2 = s2:create_index('test')
+box.snapshot()
+
+test_run:cmd('switch default')
+test_run:cmd('stop server test')
+test_run:cmd('start server test with args="replace" with crash_expected=True')
+test_run:cmd('start server test with args="insert" with crash_expected=True')
+test_run:cmd('start server test with args="upsert" with crash_expected=True')
+test_run:cmd('start server test with args="replace check_recover_complete"')
+test_run:cmd('stop server test')
+test_run:cmd('start server test with args="insert check_recover_complete"')
+test_run:cmd('stop server test')
+test_run:cmd('start server test with args="upsert check_recover_complete"')
+test_run:cmd('stop server test')
+test_run:cmd('cleanup server test')
+test_run:cmd('delete server test')
