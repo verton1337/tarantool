@@ -60,8 +60,11 @@ _ = fiber.create(insert_loop);
 fiber.sleep(3);
 
 stop = true;
+test_run:wait_cond(function() return ch:size() ~= nil end)
 for i = 1, ch:size() do
-    ch:get()
+    if not test_run:wait_cond(function() return ch:get() ~= nil end) then
+        log.error("error: hanged on:get()")
+    end
 end;
 
 test_run:cmd("setopt delimiter ''");
