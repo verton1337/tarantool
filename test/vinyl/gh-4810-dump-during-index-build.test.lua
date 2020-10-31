@@ -61,7 +61,7 @@ fiber.sleep(3);
 
 stop = true;
 for i = 1, ch:size() do
-    ch:get()
+    test_run:wait_cond(function() return ch:get() end)
 end;
 
 test_run:cmd("setopt delimiter ''");
