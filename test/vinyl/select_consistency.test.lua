@@ -1,6 +1,7 @@
 test_run = require('test_run').new()
 
 fiber = require 'fiber'
+log = require 'log'
 
 math.randomseed(os.time())
 
@@ -33,6 +34,8 @@ function gen_update()
     pcall(s.update, s, math.random(MAX_KEY), {{'+', 5, 1}})
 end;
 
+failed = false
+
 function dml_loop()
     local insert = true
     while not stop do
@@ -55,7 +58,12 @@ end;
 
 function snap_loop()
     while not stop do
-        box.snapshot()
+        local ok, err = fiber.create(function() local ok, err = pcall(box.snapshot) return ok, err end)
+        if ok == false then
+            log.info("error: box.snapshot failed with error " .. err)
+            failed = true
+            break
+        end
         fiber.sleep(0.1)
     end
     ch:put(true)
@@ -68,9 +76,7 @@ _ = fiber.create(dml_loop);
 _ = fiber.create(dml_loop);
 _ = fiber.create(snap_loop);
 
-failed = {};
-
-for i = 1, 10000 do
+function run_iter()
     local val = math.random(MAX_VAL)
     box.begin()
     local res1 = s.index.i1:select({val})
@@ -87,26 +93,39 @@ for i = 1, 10000 do
                 end
             end
             if not found then
+                log.error("error: equal not found for #res1 = " .. #res1 .. ", #res2 = " .. #res2)
                 equal = false
                 break
             end
         end
-    else
-        equal = false
-    end
-    if not equal then
-        table.insert(failed, {res1, res2})
     end
     fiber.sleep(0)
+    return equal
+end;
+
+for i = 1, 10000 do
+    if failed or not run_iter(i) then
+        log.error("error: failed on iteration " .. i)
+        failed = true
+        break
+    end
 end;
 
 stop = true;
-for i = 1, ch:size() do
-    ch:get()
+
+function check_get()
+    for i = 1, ch:size() do
+        if not test_run:wait_cond(function() return ch:get() ~= nil end) then
+            log.error("error: hanged on ch:get() on iteration " .. i)
+            return false
+	end
+    end
+    return true
 end;
 
 test_run:cmd("setopt delimiter ''");
 
-#failed == 0 or failed
+test_run:wait_cond(function() return check_get() end)
+failed
 
 s:drop()
