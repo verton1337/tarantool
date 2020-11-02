@@ -972,6 +972,40 @@ local function upgrade_to_2_3_1()
 end
 
 --------------------------------------------------------------------------------
+-- Tarantool 2.7.1
+--------------------------------------------------------------------------------
+
+local function upgrade_to_2_7_1()
+    local _func = box.space[box.schema.FUNC_ID]
+    local _priv = box.space[box.schema.PRIV_ID]
+
+    local datetime = os.date("%Y-%m-%d %H:%M:%S")
+
+    -- Re-create "box.schema.user.info" function.
+    log.info('remove old function "box.schema.user.info"')
+    _priv:delete({2, 'function', 1})
+    _func:delete({1})
+    log.info('create function "box.schema.user.info" with setuid')
+    _func:replace({1, ADMIN, 'box.schema.user.info', 0, 'LUA', '', 'function',
+                  {}, 'any', 'none', 'none', false, false, true, {'LUA'},
+                  setmap({}), '', datetime, datetime})
+    log.info('grant execute on function "box.schema.user.info" to public')
+    _priv:replace{ADMIN, PUBLIC, 'function', 1, box.priv.X}
+
+    -- Re-create "LUA" function.
+    log.info('remove old function "LUA"')
+    _priv:delete({2, 'function', 65})
+    _func:delete({65})
+    log.info('create function "LUA"')
+    _func:replace({65, ADMIN, 'LUA', 0, 'LUA',
+                   'function(code) return assert(loadstring(code))() end',
+                   'function', {'string'}, 'any', 'none', 'none', false, false,
+                   true, {'LUA', 'SQL'}, setmap({}), '', datetime, datetime})
+    log.info('grant execute on function "LUA" to public')
+    _priv:replace{ADMIN, PUBLIC, 'function', 65, box.priv.X}
+end
+
+--------------------------------------------------------------------------------
 
 local function get_version()
     local version = box.space._schema:get{'version'}
@@ -1007,6 +1041,7 @@ local function upgrade(options)
         {version = mkversion(2, 2, 1), func = upgrade_to_2_2_1, auto = true},
         {version = mkversion(2, 3, 0), func = upgrade_to_2_3_0, auto = true},
         {version = mkversion(2, 3, 1), func = upgrade_to_2_3_1, auto = true},
+        {version = mkversion(2, 7, 1), func = upgrade_to_2_7_1, auto = true},
     }
 
     for _, handler in ipairs(handlers) do
