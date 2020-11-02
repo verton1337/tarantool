@@ -210,7 +210,10 @@ ch:is_empty()
 ---
 - false
 ...
-ch:get(box.info.pid) == box.info.pid
+box_info_pid = test_run:wait_cond(function() return ch:get(box.info.pid) end)
+---
+...
+box_info_pid == box.info.pid
 ---
 - true
 ...

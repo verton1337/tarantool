@@ -58,7 +58,8 @@ ch:put(box.info.pid)
 ch:count()
 ch:is_full()
 ch:is_empty()
-ch:get(box.info.pid) == box.info.pid
+box_info_pid = test_run:wait_cond(function() return ch:get(box.info.pid) end)
+box_info_pid == box.info.pid
 buffer
 
 ch:is_empty()
