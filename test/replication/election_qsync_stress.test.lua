@@ -54,7 +54,7 @@ for i = 1,10 do
     c:eval('box.cfg{replication_synchro_quorum=4, replication_synchro_timeout=1000}')
     c.space.test:insert({i}, {is_async=true})
     test_run:wait_cond(function() return c.space.test:get{i} ~= nil end)
-    test_run:cmd('stop server '..old_leader)
+    test_run:cmd('stop server '..old_leader..' with signal=KILL')
     nrs[old_leader_nr] = false
     new_leader_nr = get_leader(nrs)
     new_leader = 'election_replica'..new_leader_nr
