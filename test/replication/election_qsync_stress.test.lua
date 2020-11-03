@@ -1,5 +1,6 @@
 test_run = require('test_run').new()
 netbox = require('net.box')
+log = require('log')
 
 --
 -- gh-1146: Leader election + Qsync
@@ -47,26 +48,42 @@ _ = c:eval('box.space.test:create_index("pk")')
 -- Insert some data to a synchronous space, then kill the leader before the
 -- confirmation is written. Check successful confirmation on the new leader.
 test_run:cmd('setopt delimiter ";"')
-for i = 1,10 do
+function run_iter(i)
     c:eval('box.cfg{replication_synchro_quorum=4, replication_synchro_timeout=1000}')
     c.space.test:insert({i}, {is_async=true})
-    test_run:wait_cond(function() return c.space.test:get{i} ~= nil end)
-    test_run:cmd('stop server '..old_leader)
+    if not test_run:wait_cond(function() return c.space.test ~= nil
+            and c.space.test:get{i} ~= nil end) then
+        log.error('error: hanged on first call to c.space.test:get(' .. i .. ')')
+        return false
+    end
+    test_run:cmd('stop server '..old_leader..' with signal=KILL')
     nrs[old_leader_nr] = false
-    new_leader_nr = get_leader(nrs)
-    new_leader = 'election_replica'..new_leader_nr
-    leader_port = test_run:eval(new_leader, 'box.cfg.listen')[1]
+    local new_leader_nr = get_leader(nrs)
+    local new_leader = 'election_replica'..new_leader_nr
+    local leader_port = test_run:eval(new_leader, 'box.cfg.listen')[1]
     c = netbox.connect(leader_port)
     c:eval('box.cfg{replication_synchro_timeout=1000}')
     c.space._schema:replace{'smth'}
-    c.space.test:get{i}
-    test_run:cmd('start server '..old_leader..' with wait=True, wait_load=True, args="2 0.4"')
+    if not test_run:wait_cond(function() return c.space.test ~= nil
+            and c.space.test:get{i} ~= nil end) then
+        log.error('error: hanged on second call to c.space.test:get(' .. i .. ')')
+        return false
+    end
+    if not test_run:wait_cond(function() return test_run:cmd('start server ' .. old_leader
+            .. ' with wait=True, wait_load=True, args="2 0.4"') == true end) then
+        log.error('error: start server (' .. old_leader .. ')')
+        return false
+    end
     nrs[old_leader_nr] = true
     old_leader_nr = new_leader_nr
     old_leader = new_leader
+    return true
 end;
 test_run:cmd('setopt delimiter ""');
+
+for i = 1,10 do if not run_iter(i) then break end end
+
 -- We're connected to some leader.
-#c.space.test:select{} == 10 or require('log').error(c.space.test:select{})
+#c.space.test:select{} == 10 or log.error(c.space.test:select{})
 
 test_run:drop_cluster(SERVERS)
