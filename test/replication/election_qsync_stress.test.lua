@@ -1,6 +1,9 @@
 test_run = require('test_run').new()
 netbox = require('net.box')
 
+test_run:cmd("push filter 'error: Found uncommitted sync transactions from other instance with id [0-9]+'" .. \
+             "to 'error: Found uncommitted sync transactions from other instance with id <NUM>'")
+
 --
 -- gh-1146: Leader election + Qsync
 --
