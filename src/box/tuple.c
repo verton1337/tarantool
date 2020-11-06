@@ -488,7 +488,7 @@ tuple_go_to_path(const char **data, const char *path, uint32_t path_len,
 
 const char *
 tuple_field_raw_by_full_path(struct tuple_format *format, const char *tuple,
-			     const uint32_t *field_map, const char *path,
+			     const uint8_t *field_map, const char *path,
 			     uint32_t path_len, uint32_t path_hash)
 {
 	assert(path_len > 0);
@@ -544,7 +544,7 @@ tuple_field_raw_by_full_path(struct tuple_format *format, const char *tuple,
 
 uint32_t
 tuple_raw_multikey_count(struct tuple_format *format, const char *data,
-			       const uint32_t *field_map,
+			       const uint8_t *field_map,
 			       struct key_def *key_def)
 {
 	assert(key_def->is_multikey);

@@ -149,7 +149,7 @@ struct field_map_builder_slot {
  * When a field is not in the data tuple, its offset is 0.
  */
 static inline uint32_t
-field_map_get_offset(const uint32_t *field_map, int32_t offset_slot,
+field_map_get_offset(const uint8_t *field_map, int32_t offset_slot,
 		     int multikey_idx)
 {
 	/*
@@ -157,7 +157,7 @@ field_map_get_offset(const uint32_t *field_map, int32_t offset_slot,
 	 * because its alignment may be < 4 bytes. Need to use
 	 * unaligned store-load operations explicitly.
 	 */
-	uint32_t offset = load_u32(&field_map[offset_slot]);
+	uint32_t offset = load_u32(&field_map[offset_slot * sizeof(uint32_t)]);
 	if (multikey_idx != MULTIKEY_NONE && (int32_t)offset < 0) {
 		/**
 		 * The field_map extent has the following
