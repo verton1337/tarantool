@@ -815,9 +815,8 @@ txn_commit_async(struct txn *txn)
 	if (req == NULL)
 		goto rollback;
 
-	bool is_sync = txn_has_flag(txn, TXN_WAIT_SYNC);
 	struct txn_limbo_entry *limbo_entry;
-	if (is_sync) {
+	if (txn_has_flag(txn, TXN_WAIT_SYNC)) {
 		/*
 		 * We'll need this trigger for sync transactions later,
 		 * but allocation failure is inappropriate after the entry
