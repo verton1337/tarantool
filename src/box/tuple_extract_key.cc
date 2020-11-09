@@ -134,15 +134,18 @@ tuple_extract_key_slowpath(struct tuple *tuple, struct key_def *key_def,
 		const char *field;
 		if (!has_json_paths) {
 			field = tuple_field_raw(format, data, field_map,
-						key_def->parts[i].fieldno);
+						key_def->parts[i].fieldno,
+						tuple->is_tiny);
 		} else if (!is_multikey) {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
-							MULTIKEY_NONE);
+							MULTIKEY_NONE,
+							tuple->is_tiny);
 		} else {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
-							multikey_idx);
+							multikey_idx,
+							tuple->is_tiny);
 		}
 		if (has_optional_parts && field == NULL) {
 			bsize += mp_sizeof_nil();
@@ -186,15 +189,18 @@ tuple_extract_key_slowpath(struct tuple *tuple, struct key_def *key_def,
 		const char *field;
 		if (!has_json_paths) {
 			field = tuple_field_raw(format, data, field_map,
-						key_def->parts[i].fieldno);
+						key_def->parts[i].fieldno,
+						tuple->is_tiny);
 		} else if (!is_multikey) {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
-							MULTIKEY_NONE);
+							MULTIKEY_NONE,
+							tuple->is_tiny);
 		} else {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
-							multikey_idx);
+							multikey_idx,
+							tuple->is_tiny);
 		}
 		if (has_optional_parts && field == NULL) {
 			key_buf = mp_encode_nil(key_buf);
@@ -469,7 +475,8 @@ tuple_key_contains_null(struct tuple *tuple, struct key_def *def,
 	     part < end; ++part) {
 		const char *field = tuple_field_raw_by_part(format, data,
 							    field_map, part,
-							    multikey_idx);
+							    multikey_idx,
+							    tuple->is_tiny);
 		if (field == NULL || mp_typeof(*field) == MP_NIL)
 			return true;
 	}

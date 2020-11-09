@@ -80,7 +80,7 @@ field_map_builder_slot_extent_new(struct field_map_builder *builder,
 }
 
 void
-field_map_build(struct field_map_builder *builder, char *buffer)
+field_map_build(struct field_map_builder *builder, char *buffer, bool is_tiny)
 {
 	/*
 	 * To initialize the field map and its extents, prepare
@@ -98,7 +98,7 @@ field_map_build(struct field_map_builder *builder, char *buffer)
 	 * field_map_build_size(builder) bytes there.
 	 */
 	uint8_t *field_map =
-		(uint8_t *)(buffer + field_map_build_size(builder));
+		(uint8_t *)(buffer + field_map_build_size(builder, is_tiny));
 	char *extent_wptr = buffer;
 	for (int32_t i = -1; i >= -(int32_t)builder->slot_count; i--) {
 		/*
@@ -108,8 +108,10 @@ field_map_build(struct field_map_builder *builder, char *buffer)
 		 * explicitly.
 		 */
 		if (!builder->slots[i].has_extent) {
-			store_u32(&field_map[i * sizeof(uint32_t)],
-				  builder->slots[i].offset);
+			is_tiny ? store_u8(&field_map[i],
+					   builder->slots[i].offset) :
+				  store_u32(&field_map[i * sizeof(uint32_t)],
+					    builder->slots[i].offset);
 			continue;
 		}
 		struct field_map_builder_slot_extent *extent =

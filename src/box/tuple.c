@@ -80,11 +80,14 @@ runtime_tuple_new(struct tuple_format *format, const char *data, const char *end
 	struct region *region = &fiber()->gc;
 	size_t region_svp = region_used(region);
 	struct field_map_builder builder;
+	bool is_tiny = false;
 	if (tuple_field_map_create(format, data, true, &builder) != 0)
 		goto end;
-	uint32_t field_map_size = field_map_build_size(&builder);
+	uint32_t field_map_size = field_map_build_size(&builder, is_tiny);
 	uint32_t data_offset = sizeof(struct tuple) + field_map_size +
-			       sizeof(uint32_t) + sizeof(uint16_t);
+			        is_tiny * 2 * sizeof(uint8_t) +
+				!is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));
+	assert(!is_tiny || data_offset <= UINT8_MAX);
 	if (data_offset > INT16_MAX) {
 		/** tuple data_offset is 15 bits */
 		diag_set(ClientError, ER_TUPLE_METADATA_IS_TOO_BIG,
@@ -102,13 +105,14 @@ runtime_tuple_new(struct tuple_format *format, const char *data, const char *end
 	}
 
 	tuple->refs = 0;
+	tuple->is_tiny = is_tiny;
 	tuple_set_bsize(tuple, data_len);
 	tuple->format_id = tuple_format_id(format);
 	tuple_format_ref(format);
 	tuple_set_data_offset(tuple, data_offset);
 	tuple->is_dirty = false;
 	char *raw = (char *) tuple + data_offset;
-	field_map_build(&builder, raw - field_map_size);
+	field_map_build(&builder, raw - field_map_size, is_tiny);
 	memcpy(raw, data, data_len);
 	say_debug("%s(%zu) = %p", __func__, data_len, tuple);
 end:
@@ -489,7 +493,8 @@ tuple_go_to_path(const char **data, const char *path, uint32_t path_len,
 const char *
 tuple_field_raw_by_full_path(struct tuple_format *format, const char *tuple,
 			     const uint8_t *field_map, const char *path,
-			     uint32_t path_len, uint32_t path_hash)
+			     uint32_t path_len, uint32_t path_hash,
+			     bool is_tiny)
 {
 	assert(path_len > 0);
 	uint32_t fieldno;
@@ -501,7 +506,8 @@ tuple_field_raw_by_full_path(struct tuple_format *format, const char *tuple,
 	 */
 	if (tuple_fieldno_by_name(format->dict, path, path_len, path_hash,
 				  &fieldno) == 0)
-		return tuple_field_raw(format, tuple, field_map, fieldno);
+		return tuple_field_raw(format, tuple, field_map, fieldno,
+				       is_tiny);
 	struct json_lexer lexer;
 	struct json_token token;
 	json_lexer_create(&lexer, path, path_len, TUPLE_INDEX_BASE);
@@ -539,13 +545,13 @@ tuple_field_raw_by_full_path(struct tuple_format *format, const char *tuple,
 	return tuple_field_raw_by_path(format, tuple, field_map, fieldno,
 				       path + lexer.offset,
 				       path_len - lexer.offset,
-				       NULL, MULTIKEY_NONE);
+				       NULL, MULTIKEY_NONE, is_tiny);
 }
 
 uint32_t
 tuple_raw_multikey_count(struct tuple_format *format, const char *data,
 			       const uint8_t *field_map,
-			       struct key_def *key_def)
+			       struct key_def *key_def, bool is_tiny)
 {
 	assert(key_def->is_multikey);
 	const char *array_raw =
@@ -553,7 +559,7 @@ tuple_raw_multikey_count(struct tuple_format *format, const char *data,
 					key_def->multikey_fieldno,
 					key_def->multikey_path,
 					key_def->multikey_path_len,
-					NULL, MULTIKEY_NONE);
+					NULL, MULTIKEY_NONE, is_tiny);
 	if (array_raw == NULL)
 		return 0;
 	enum mp_type type = mp_typeof(*array_raw);

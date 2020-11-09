@@ -376,10 +376,11 @@ tuple_hash_slowpath(struct tuple *tuple, struct key_def *key_def)
 	const char *field;
 	if (has_json_paths) {
 		field = tuple_field_raw_by_part(format, tuple_raw, field_map,
-						key_def->parts, MULTIKEY_NONE);
+						key_def->parts, MULTIKEY_NONE,
+						tuple->is_tiny);
 	} else {
 		field = tuple_field_raw(format, tuple_raw, field_map,
-					prev_fieldno);
+					prev_fieldno, tuple->is_tiny);
 	}
 	const char *end = (char *)tuple + tuple_size(tuple);
 	if (has_optional_parts && field == NULL) {
@@ -398,10 +399,11 @@ tuple_hash_slowpath(struct tuple *tuple, struct key_def *key_def)
 			if (has_json_paths) {
 				field = tuple_field_raw_by_part(format, tuple_raw,
 								field_map, part,
-								MULTIKEY_NONE);
+								MULTIKEY_NONE,
+								tuple->is_tiny);
 			} else {
 				field = tuple_field_raw(format, tuple_raw, field_map,
-						    part->fieldno);
+						    part->fieldno, tuple->is_tiny);
 			}
 		}
 		if (has_optional_parts && (field == NULL || field >= end)) {
