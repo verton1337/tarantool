@@ -606,7 +606,7 @@ tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 						  tuple_a->is_tiny);
 			field_b = tuple_field_raw(format_b, tuple_b_raw,
 						  field_map_b, part->fieldno,
-						  tuple_a->is_tiny);
+						  tuple_b->is_tiny);
 		}
 		assert(has_optional_parts ||
 		       (field_a != NULL && field_b != NULL));

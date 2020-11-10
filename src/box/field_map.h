@@ -215,16 +215,18 @@ static inline int
 field_map_builder_set_slot(struct field_map_builder *builder,
 			   int32_t offset_slot, uint32_t offset,
 			   int32_t multikey_idx, uint32_t multikey_count,
-			   struct region *region)
+			   struct region *region, bool *is_tiny)
 {
 	assert(offset_slot < 0);
 	assert((uint32_t)-offset_slot <= builder->slot_count);
 	assert(offset > 0);
 	if (multikey_idx == MULTIKEY_NONE) {
 		builder->slots[offset_slot].offset = offset;
+		*is_tiny = ((*is_tiny) && (offset <= UINT8_MAX));
 	} else {
 		assert(multikey_idx >= 0);
 		assert(multikey_idx < (int32_t)multikey_count);
+		*is_tiny = false;
 		struct field_map_builder_slot_extent *extent;
 		if (builder->slots[offset_slot].has_extent) {
 			extent = builder->slots[offset_slot].extent;

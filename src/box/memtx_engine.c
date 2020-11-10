@@ -1195,8 +1195,9 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	struct region *region = &fiber()->gc;
 	size_t region_svp = region_used(region);
 	struct field_map_builder builder;
-	bool is_tiny = false;
-	if (tuple_field_map_create(format, data, true, &builder) != 0)
+	size_t tuple_len = end - data;
+	bool is_tiny = (tuple_len <= UINT8_MAX);
+	if (tuple_field_map_create(format, data, true, &builder, &is_tiny) != 0)
 		goto end;
 	uint32_t field_map_size = field_map_build_size(&builder, is_tiny);
 	/*
@@ -1204,6 +1205,10 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	 * tuple base, not from memtx_tuple, because the struct
 	 * tuple is not the first field of the memtx_tuple.
 	 */
+	is_tiny = (is_tiny && (sizeof(struct tuple) + field_map_size +
+			       sizeof(uint8_t) * 2 <= UINT8_MAX));
+	if (!is_tiny)
+		field_map_size = field_map_build_size(&builder, is_tiny);
 	uint32_t data_offset = sizeof(struct tuple) + field_map_size +
 			       is_tiny * 2 * sizeof(uint8_t) +
 			       !is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));
@@ -1215,7 +1220,6 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 		goto end;
 	}
 
-	size_t tuple_len = end - data;
 	size_t total = sizeof(struct memtx_tuple) + field_map_size +
 		       tuple_len + is_tiny * 2 * sizeof(uint8_t) +
 		       !is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));

@@ -353,7 +353,8 @@ vy_stmt_new_with_ops(struct tuple_format *format, const char *tuple_begin,
 	 */
 	struct field_map_builder builder;
 	bool is_tiny = false;
-	if (tuple_field_map_create(format, tuple_begin, false, &builder) != 0)
+	if (tuple_field_map_create(format, tuple_begin, false, &builder,
+				   &is_tiny) != 0)
 		goto end;
 	uint32_t field_map_size = field_map_build_size(&builder, is_tiny);
 	/*
@@ -503,8 +504,8 @@ vy_stmt_new_surrogate_delete_raw(struct tuple_format *format,
 		uint32_t offset_slot = entry.field->offset_slot;
 		if (offset_slot != TUPLE_OFFSET_SLOT_NIL &&
 		    field_map_builder_set_slot(&builder, offset_slot,
-					pos - data, entry.multikey_idx,
-					entry.multikey_count, region) != 0)
+				pos - data, entry.multikey_idx,
+				entry.multikey_count, region, &is_tiny) != 0)
 			goto out;
 		/* Copy field data. */
 		if (entry.field->type == FIELD_TYPE_ARRAY) {
