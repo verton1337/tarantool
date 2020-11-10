@@ -47,6 +47,7 @@ local positional_arguments
 local keyword_arguments
 local lua_arguments = arg
 local language
+local signal
 
 -- function for printing usage reference
 local usage
@@ -161,6 +162,10 @@ local function load_default_file(default_file)
         log.error('Unknown language: %s', language)
         os.exit(1)
     end
+
+    -- SIGTERM by default
+    signal = d.signal or 15
+    d.signal = nil
 
     default_cfg = d
 
@@ -596,8 +601,10 @@ local function stop()
     end
 
     fio.unlink(pid_file)
-    if ffi.C.kill(pid, 15) < 0 then
-        log.error("Can't kill process %d: %s", pid, errno.strerror())
+    signal = keyword_arguments.signal or signal
+    if ffi.C.kill(pid, 0) and ffi.C.kill(pid, signal) < 0 then
+        log.error("Can't kill process %d with signal %d: %s",
+                  pid, signal, errno.strerror())
         return 1
     end
     return 0
@@ -1009,11 +1016,14 @@ local commands = setmetatable({
         }
     }, stop = {
         func = exit_wrapper(stop), process = process_local, help = {
-            header = "%s stop INSTANCE",
+            header = "%s stop INSTANCE [--signal=signal]",
             linkmode = "%s stop",
             description =
 [=[
         Stop a Tarantool instance.
+
+        Supported options:
+        * --signal=signal use to the stop the instance.
 ]=],
             weight = 20,
             deprecated = false,
@@ -1064,11 +1074,14 @@ local commands = setmetatable({
         }
     }, restart = {
         func = restart, process = process_local, help = {
-            header = "%s restart INSTANCE",
+            header = "%s restart INSTANCE [--signal=signal]",
             linkmode = "%s restart",
             description =
 [=[
         Stop and start a Tarantool instance.
+
+        Supported options:
+        * --signal=signal use to the stop the instance.
 ]=],
             weight = 40,
             deprecated = false,
@@ -1287,6 +1300,7 @@ local function populate_arguments()
         { 'format',      'string'  },
         { 'replica',     'number+' },
         { 'language',    'string'  },
+        { 'signal',      'number'  },
     })
 
     local cmd_name
