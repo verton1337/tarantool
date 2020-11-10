@@ -344,7 +344,6 @@ struct PACKED tuple
 			 * byte array (in case is_tiny == false).
 			 */
 			bool is_dirty : 1;
-			bool stub : 1;
 		};
 	};
 	/**
