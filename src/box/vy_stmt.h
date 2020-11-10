@@ -185,48 +185,50 @@ struct vy_stmt {
 static inline int64_t
 vy_stmt_lsn(struct tuple *stmt)
 {
-	return ((struct vy_stmt *)((void *)stmt +
-				   !stmt->is_tiny * sizeof(uint32_t)))->lsn;
+	return load_u64((void *)stmt + sizeof(struct tuple) +
+				       sizeof(uint32_t) * !stmt->is_tiny);
 }
 
 /** Set LSN of the vinyl statement. */
 static inline void
 vy_stmt_set_lsn(struct tuple *stmt, int64_t lsn)
 {
-	((struct vy_stmt *)((void *)stmt +
-			    !stmt->is_tiny * sizeof(uint32_t)))->lsn = lsn;
+	store_u64((void *)stmt + sizeof(struct tuple) +
+				 sizeof(uint32_t) * !stmt->is_tiny, lsn);
 }
 
 /** Get type of the vinyl statement. */
 static inline enum iproto_type
 vy_stmt_type(struct tuple *stmt)
 {
-	return ((struct vy_stmt *)((void *)stmt +
-				   !stmt->is_tiny * sizeof(uint32_t)))->type;
+	return load_u8((void *)stmt + sizeof(struct tuple) +
+		       !stmt->is_tiny * sizeof(uint32_t) + sizeof(int64_t));
 }
 
 /** Set type of the vinyl statement. */
 static inline void
 vy_stmt_set_type(struct tuple *stmt, enum iproto_type type)
 {
-	((struct vy_stmt *)((void *)stmt +
-			    !stmt->is_tiny * sizeof(uint32_t)))->type = type;
+	store_u8((void *)stmt + sizeof(struct tuple) +
+		 !stmt->is_tiny * sizeof(uint32_t) + sizeof(int64_t), type);
 }
 
 /** Get flags of the vinyl statement. */
 static inline uint8_t
 vy_stmt_flags(struct tuple *stmt)
 {
-	return ((struct vy_stmt *)((void *)stmt +
-				   !stmt->is_tiny * sizeof(uint32_t)))->flags;
+	return load_u8((void *)stmt + sizeof(struct tuple) +
+		       sizeof(uint32_t) * !stmt->is_tiny +
+		       sizeof(int64_t) + sizeof(uint8_t));
 }
 
 /** Set flags of the vinyl statement. */
 static inline void
 vy_stmt_set_flags(struct tuple *stmt, uint8_t flags)
 {
-	((struct vy_stmt *)((void *)stmt +
-			    !stmt->is_tiny * sizeof(uint32_t)))->flags = flags;
+	store_u8((void *)stmt + sizeof(struct tuple) +
+		 sizeof(uint32_t) * !stmt->is_tiny +
+		 sizeof(int64_t) + sizeof(uint8_t), flags);
 }
 
 /**
