@@ -48,6 +48,24 @@ txn_limbo_create(struct txn_limbo *limbo)
 	limbo->is_in_rollback = false;
 }
 
+static bool
+txn_limbo_change_owner(struct txn_limbo *limbo, uint32_t owner_id)
+{
+	/*
+	 * Owner transition is allowed for empty txn queue only
+	 * since different nodes have own vclocks and LSNs won't
+	 * be ordered in limbo context.
+	 */
+	if (rlist_empty(&limbo->queue)) {
+		limbo->owner_id = owner_id;
+		limbo->confirmed_lsn = 0;
+		return true;
+	}
+
+	diag_set(ClientError, ER_UNCOMMITTED_FOREIGN_SYNC_TXNS, limbo->owner_id);
+	return false;
+}
+
 struct txn_limbo_entry *
 txn_limbo_append(struct txn_limbo *limbo, uint32_t owner_id, struct txn *txn)
 {
@@ -77,17 +95,12 @@ txn_limbo_append(struct txn_limbo *limbo, uint32_t owner_id, struct txn *txn)
 		 */
 		owner_id = instance_id;
 	}
+
 	if (limbo->owner_id != owner_id) {
-		if (limbo->owner_id == REPLICA_ID_NIL ||
-		    rlist_empty(&limbo->queue)) {
-			limbo->owner_id = owner_id;
-			limbo->confirmed_lsn = 0;
-		} else {
-			diag_set(ClientError, ER_UNCOMMITTED_FOREIGN_SYNC_TXNS,
-				 limbo->owner_id);
+		if (!txn_limbo_change_owner(limbo, owner_id))
 			return NULL;
-		}
 	}
+
 	size_t size;
 	struct txn_limbo_entry *e = region_alloc_object(&txn->region,
 							typeof(*e), &size);
