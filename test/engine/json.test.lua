@@ -170,7 +170,7 @@ name:select({})
 name:select({'Max'})
 name:get({'Max', 'Stierlitz', 'Otto'})
 box.snapshot()
-test_run:cmd("restart server default")
+test_run:cmd("restart server default with signal=KILL")
 engine = test_run:get_cfg('engine')
 s = box.space["withdata"]
 pk = s.index["pk"]

@@ -595,7 +595,7 @@ box.snapshot()
 ---
 - ok
 ...
-test_run:cmd("restart server default")
+test_run:cmd("restart server default with signal=KILL")
 engine = test_run:get_cfg('engine')
 ---
 ...
