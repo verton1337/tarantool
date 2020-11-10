@@ -832,8 +832,8 @@ txn_commit_async(struct txn *txn)
 		}
 
 		/* See txn_commit(). */
-		uint32_t origin_id = req->rows[0]->replica_id;
-		limbo_entry = txn_limbo_append(&txn_limbo, origin_id, txn);
+		uint32_t owner_id = req->rows[0]->replica_id;
+		limbo_entry = txn_limbo_append(&txn_limbo, owner_id, txn);
 		if (limbo_entry == NULL)
 			goto rollback;
 
@@ -900,14 +900,14 @@ txn_commit(struct txn *txn)
 		 * Remote rows, if any, come before local rows, so
 		 * check for originating instance id here.
 		 */
-		uint32_t origin_id = req->rows[0]->replica_id;
+		uint32_t owner_id = req->rows[0]->replica_id;
 
 		/*
 		 * Append now. Before even WAL write is done.
 		 * After WAL write nothing should fail, even OOM
 		 * wouldn't be acceptable.
 		 */
-		limbo_entry = txn_limbo_append(&txn_limbo, origin_id, txn);
+		limbo_entry = txn_limbo_append(&txn_limbo, owner_id, txn);
 		if (limbo_entry == NULL)
 			goto rollback;
 	}

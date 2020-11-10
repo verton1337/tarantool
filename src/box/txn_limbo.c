@@ -49,7 +49,7 @@ txn_limbo_create(struct txn_limbo *limbo)
 }
 
 struct txn_limbo_entry *
-txn_limbo_append(struct txn_limbo *limbo, uint32_t id, struct txn *txn)
+txn_limbo_append(struct txn_limbo *limbo, uint32_t owner_id, struct txn *txn)
 {
 	assert(txn_has_flag(txn, TXN_WAIT_SYNC));
 	/*
@@ -70,12 +70,17 @@ txn_limbo_append(struct txn_limbo *limbo, uint32_t id, struct txn *txn)
 		diag_set(ClientError, ER_SYNC_ROLLBACK);
 		return NULL;
 	}
-	if (id == 0)
-		id = instance_id;
-	if (limbo->owner_id != id) {
+	if (owner_id == REPLICA_ID_NIL) {
+		/*
+		 * Transactionis initiated on the local node,
+		 * thus we're the owner of the transaction.
+		 */
+		owner_id = instance_id;
+	}
+	if (limbo->owner_id != owner_id) {
 		if (limbo->owner_id == REPLICA_ID_NIL ||
 		    rlist_empty(&limbo->queue)) {
-			limbo->owner_id = id;
+			limbo->owner_id = owner_id;
 			limbo->confirmed_lsn = 0;
 		} else {
 			diag_set(ClientError, ER_UNCOMMITTED_FOREIGN_SYNC_TXNS,
