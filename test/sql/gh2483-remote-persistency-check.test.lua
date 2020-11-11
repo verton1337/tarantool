@@ -13,7 +13,7 @@ box.execute([[INSERT INTO t (id) VALUES (1)]])
 -- Sanity check
 box.execute([[SELECT * FROM t]])
 
-test_run:cmd('restart server default');
+test_run:cmd('restart server default with signal=KILL');
 
 -- Connect to ourself
 c = require('net.box').connect(os.getenv("LISTEN"))
