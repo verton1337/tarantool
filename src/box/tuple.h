@@ -361,6 +361,35 @@ struct PACKED tuple
 };
 
 static inline void
+tuple_set_dirty_simple(struct tuple *tuple, bool is_dirty)
+{
+	tuple->is_dirty = is_dirty;
+}
+
+static inline void
+tuple_set_dirty_bit(struct tuple *tuple, bool is_dirty)
+{
+	*tuple->bsize = is_dirty ? *tuple->bsize | 0x80000000 :
+	                *tuple->bsize & 0x7fffffff;
+}
+
+static inline void
+tuple_set_dirty(struct tuple *tuple, bool is_dirty)
+{
+	assert(tuple != NULL);
+	tuple->is_tiny ? tuple_set_dirty_simple(tuple, is_dirty) :
+	tuple_set_dirty_bit(tuple, is_dirty);
+}
+
+static inline bool
+tuple_is_dirty(struct tuple *tuple)
+{
+	assert(tuple != NULL);
+	return tuple->is_tiny ? tuple->is_dirty :
+	       *tuple->bsize >> 31;
+}
+
+static inline void
 tuple_set_tiny_bsize(struct tuple *tuple, uint8_t bsize)
 {
 	tuple->tiny_bsize = bsize;
@@ -369,7 +398,9 @@ tuple_set_tiny_bsize(struct tuple *tuple, uint8_t bsize)
 static inline void
 tuple_set_31bit_bsize(struct tuple *tuple, uint32_t bsize)
 {
+	bool is_dirty = *tuple->bsize >> 31;
 	*tuple->bsize = bsize;
+	tuple_set_dirty_bit(tuple, is_dirty);
 }
 
 static inline void
@@ -415,35 +446,6 @@ tuple_data_offset(struct tuple *tuple)
 	assert(tuple != NULL);
 	return tuple->is_tiny ? tuple->tiny_data_offset :
 				tuple->data_offset;
-}
-
-static inline void
-tuple_set_dirty_simple(struct tuple *tuple, bool is_dirty)
-{
-	tuple->is_dirty = is_dirty;
-}
-
-static inline void
-tuple_set_dirty_bit(struct tuple *tuple, bool is_dirty)
-{
-	*tuple->bsize = is_dirty ? *tuple->bsize | 0x80000000 :
-				   *tuple->bsize & 0x7fffffff;
-}
-
-static inline void
-tuple_set_dirty(struct tuple *tuple, bool is_dirty)
-{
-	assert(tuple != NULL);
-	tuple->is_tiny ? tuple_set_dirty_simple(tuple, is_dirty) :
-			 tuple_set_dirty_bit(tuple, is_dirty);
-}
-
-static inline bool
-tuple_is_dirty(struct tuple *tuple)
-{
-	assert(tuple != NULL);
-	return tuple->is_tiny ? tuple->is_dirty :
-				*tuple->bsize >> 31;
 }
 
 /** Size of the tuple including size of struct tuple. */
