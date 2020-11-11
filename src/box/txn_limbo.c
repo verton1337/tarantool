@@ -573,20 +573,25 @@ txn_limbo_wait_confirm(struct txn_limbo *limbo)
 	if (txn_limbo_is_empty(limbo))
 		return 0;
 
-	/* initialization of a waitpoint. */
-	struct confirm_waitpoint cwp;
-	cwp.caller = fiber();
-	cwp.is_confirm = false;
-	cwp.is_rollback = false;
+	struct confirm_waitpoint cwp = {
+		.caller = fiber(),
+		.is_confirm = false,
+		.is_rollback = false,
+	};
 
-	/* Set triggers for the last limbo transaction. */
-	struct trigger on_complete;
-	trigger_create(&on_complete, txn_commit_cb, &cwp, NULL);
-	struct trigger on_rollback;
-	trigger_create(&on_rollback, txn_rollback_cb, &cwp, NULL);
+	/*
+	 * Since we're waiting for all sync transactions to complete,
+	 * we need the last entry from the limbo.
+	 */
 	struct txn_limbo_entry *tle = txn_limbo_last_entry(limbo);
+
+	struct trigger on_complete, on_rollback;
+	trigger_create(&on_complete, txn_commit_cb, &cwp, NULL);
+	trigger_create(&on_rollback, txn_rollback_cb, &cwp, NULL);
+
 	txn_on_commit(tle->txn, &on_complete);
 	txn_on_rollback(tle->txn, &on_rollback);
+
 	double start_time = fiber_clock();
 	while (true) {
 		double deadline = start_time + replication_synchro_timeout;
@@ -594,25 +599,18 @@ txn_limbo_wait_confirm(struct txn_limbo *limbo)
 		double timeout = deadline - fiber_clock();
 		int rc = fiber_cond_wait_timeout(&limbo->wait_cond, timeout);
 		fiber_set_cancellable(cancellable);
-		if (cwp.is_confirm || cwp.is_rollback)
-			goto complete;
-		if (rc != 0)
-			goto timed_out;
+		if (cwp.is_confirm) {
+			return 0;
+		} else if (cwp.is_rollback) {
+			diag_set(ClientError, ER_SYNC_ROLLBACK);
+			return -1;
+		} else if (rc != 0) {
+			trigger_clear(&on_complete);
+			trigger_clear(&on_rollback);
+			diag_set(ClientError, ER_SYNC_QUORUM_TIMEOUT);
+			return -1;
+		}
 	}
-timed_out:
-	/* Clear the triggers if the timeout has been reached. */
-	trigger_clear(&on_complete);
-	trigger_clear(&on_rollback);
-	diag_set(ClientError, ER_SYNC_QUORUM_TIMEOUT);
-	return -1;
-
-complete:
-	if (!cwp.is_confirm) {
-		/* The transaction has been rolled back. */
-		diag_set(ClientError, ER_SYNC_ROLLBACK);
-		return -1;
-	}
-	return 0;
 }
 
 int
