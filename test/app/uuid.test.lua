@@ -108,6 +108,41 @@ uuid.is_uuid(uuid.new():str())
 uuid.is_uuid(1)
 uuid.is_uuid(require('decimal').new('123'))
 
+--
+-- gh-5511: allow to compare uuid values
+--
+
+u1 = uuid.fromstr('aaaaaaaa-aaaa-4000-b000-000000000001')
+u2_str = 'bbbbbbbb-bbbb-4000-b000-000000000001'
+u2 = uuid.fromstr(u2_str)
+
+u1 > u1
+u1 >= u1
+u1 <= u1
+u1 < u1
+
+u1 > u2
+u1 >= u2
+u1 <= u2
+u1 < u2
+
+u1 > u2_str
+u1 >= u2_str
+u1 <= u2_str
+u1 < u2_str
+
+u1 < 1
+u1 <= 1
+u1 < 'abc'
+u1 <= 'abc'
+1 < u1
+1 <= u1
+'abc' < u1
+'abc' <= u1
+
+u1 = nil
+u2 = nil
+
 uuid = nil
 
 test_run:cmd("clear filter")
