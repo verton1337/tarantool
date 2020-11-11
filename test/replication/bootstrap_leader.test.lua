@@ -8,7 +8,7 @@ for i = 1,3 do
     test_run:cmd(string.format(create_server_cmd, i, i))
 end;
 
-test_run:cmd("start server replica1 with wait_load=True, wait=True");
+test_run:cmd("start server replica1 with args='', wait_load=True, wait=True");
 test_run:cmd("start server replica2 with args='1,2,3 1.0 100500 0.1', wait_load=False, wait=False");
 test_run:cmd("start server replica3 with args='1,2,3 0.1 0.5 100500', wait_load=True, wait=True");
 

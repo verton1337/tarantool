@@ -18,7 +18,7 @@ end;
  | ---
  | ...
 
-test_run:cmd("start server replica1 with wait_load=True, wait=True");
+test_run:cmd("start server replica1 with args='', wait_load=True, wait=True");
  | ---
  | - true
  | ...
