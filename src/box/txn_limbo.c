@@ -549,8 +549,7 @@ static int
 txn_commit_cb(struct trigger *trigger, void *event)
 {
 	(void)event;
-	struct confirm_waitpoint *cwp =
-		(struct confirm_waitpoint *)trigger->data;
+	struct confirm_waitpoint *cwp = trigger->data;
 	cwp->is_confirm = true;
 	fiber_wakeup(cwp->caller);
 	return 0;
@@ -560,8 +559,7 @@ static int
 txn_rollback_cb(struct trigger *trigger, void *event)
 {
 	(void)event;
-	struct confirm_waitpoint *cwp =
-		(struct confirm_waitpoint *)trigger->data;
+	struct confirm_waitpoint *cwp = trigger->data;
 	cwp->is_rollback = true;
 	fiber_wakeup(cwp->caller);
 	return 0;
