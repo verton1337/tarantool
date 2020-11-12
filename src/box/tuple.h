@@ -296,6 +296,8 @@ box_tuple_validate(box_tuple_t *tuple, box_tuple_format_t *format);
 
 /** \endcond public */
 
+#define MAX_TINY_DATA_OFFSET 63
+
 /**
  * An atom of Tarantool storage. Represents MsgPack Array.
  * Tuple has the following structure:
@@ -322,20 +324,36 @@ struct PACKED tuple
 	};
 	/** Format identifier. */
 	uint16_t format_id;
+	union {
+		/**
+		 * Offset to the MessagePack from the begin of the tuple.
+		 */
+		struct {
+			uint16_t data_offset: 15;
+			bool is_tiny : 1;
+		};
+		struct {
+			uint8_t tiny_bsize;
+			uint8_t tiny_data_offset : 6;
+			/**
+			 * The tuple (if it's found in index for example)
+			 * could be invisible for current transactions.
+			 * The flag which means that the tuple must be
+			 * clarified by transaction engine can be
+			 * also located at the start of the bsize
+			 * byte array (in case is_tiny == false).
+			 */
+			bool is_dirty : 1;
+			bool stub : 1;
+		};
+	};
 	/**
-	 * The tuple (if it's found in index for example) could be invisible
-	 * for current transactions. The flag means that the tuple must
-	 * be clarified by transaction engine.
+	 * Last 31 bits are the length of the MessagePack data
+	 * in the raw part of the tuple.
+	 * First bit contains is_dirty flag.
+	 * Valid in case of is_tiny == false. Otherwise empty.
 	 */
-	bool is_dirty : 1;
-	bool is_tiny : 1;
-	/**
-	 * This variable size byte array contains length of the
-	 * MessagePack data in raw part of the tuple (first 1 or 4 bytes).
-	 * Then offset to the MessagePack from the begin of the tuple is
-	 * presented (1 or 2 bytes).
-	 */
-	uint8_t bsize[];
+	uint32_t bsize[];
 	/**
 	 * Engine specific fields and offsets array concatenated
 	 * with MessagePack fields array.
@@ -344,37 +362,89 @@ struct PACKED tuple
 };
 
 static inline void
+tuple_set_tiny_bsize(struct tuple *tuple, uint8_t bsize)
+{
+	tuple->tiny_bsize = bsize;
+}
+
+static inline void
+tuple_set_31bit_bsize(struct tuple *tuple, uint32_t bsize)
+{
+	*tuple->bsize = bsize;
+}
+
+static inline void
 tuple_set_bsize(struct tuple *tuple, uint32_t bsize)
 {
 	assert(tuple != NULL);
-	tuple->is_tiny ? store_u8(tuple->bsize, (uint8_t)bsize) :
-			 store_u32(tuple->bsize, bsize);
+	assert(bsize <= INT32_MAX);
+	tuple->is_tiny ? tuple_set_tiny_bsize(tuple, bsize) :
+			 tuple_set_31bit_bsize(tuple, bsize);
 }
 
 static inline uint32_t
 tuple_bsize(struct tuple *tuple)
 {
 	assert(tuple != NULL);
-	return tuple->is_tiny ? load_u8(tuple->bsize) :
-				load_u32(tuple->bsize);
+	return tuple->is_tiny ? tuple->tiny_bsize :
+				(*tuple->bsize << 1) >> 1;
+}
+
+static inline void
+tuple_set_tiny_data_offset(struct tuple *tuple, uint8_t data_offset)
+{
+	tuple->tiny_data_offset = data_offset;
+}
+
+static inline void
+tuple_set_15bit_data_offset(struct tuple *tuple, uint16_t data_offset)
+{
+	tuple->data_offset = data_offset;
 }
 
 static inline void
 tuple_set_data_offset(struct tuple *tuple, uint16_t data_offset)
 {
 	assert(tuple != NULL);
-	tuple->is_tiny ? store_u8(tuple->bsize + sizeof(uint8_t),
-				  (uint8_t)data_offset) :
-			 store_u16(tuple->bsize + sizeof(uint32_t),
-				   data_offset);
+	tuple->is_tiny ? tuple_set_tiny_data_offset(tuple, data_offset) :
+			 tuple_set_15bit_data_offset(tuple, data_offset);
 }
 
 static inline uint16_t
 tuple_data_offset(struct tuple *tuple)
 {
 	assert(tuple != NULL);
-	return tuple->is_tiny ? load_u8(tuple->bsize + sizeof(uint8_t)) :
-				load_u16(tuple->bsize + sizeof(uint32_t));
+	return tuple->is_tiny ? tuple->tiny_data_offset :
+				tuple->data_offset;
+}
+
+static inline void
+tuple_set_dirty_simple(struct tuple *tuple, bool is_dirty)
+{
+	tuple->is_dirty = is_dirty;
+}
+
+static inline void
+tuple_set_dirty_bit(struct tuple *tuple, bool is_dirty)
+{
+	*tuple->bsize = is_dirty ? *tuple->bsize | 0x80000000 :
+				   *tuple->bsize & 0x7fffffff;
+}
+
+static inline void
+tuple_set_dirty(struct tuple *tuple, bool is_dirty)
+{
+	assert(tuple != NULL);
+	tuple->is_tiny ? tuple_set_dirty_simple(tuple, is_dirty) :
+			 tuple_set_dirty_bit(tuple, is_dirty);
+}
+
+static inline bool
+tuple_is_dirty(struct tuple *tuple)
+{
+	assert(tuple != NULL);
+	return tuple->is_tiny ? tuple->is_dirty :
+				*tuple->bsize >> 31;
 }
 
 /** Size of the tuple including size of struct tuple. */
@@ -1157,7 +1227,7 @@ tuple_unref(struct tuple *tuple)
 	if (unlikely(tuple->is_bigref))
 		tuple_unref_slow(tuple);
 	else if (--tuple->refs == 0) {
-		assert(!tuple->is_dirty);
+		assert(!tuple_is_dirty(tuple));
 		tuple_delete(tuple);
 	}
 }

@@ -1205,14 +1205,12 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	 * tuple base, not from memtx_tuple, because the struct
 	 * tuple is not the first field of the memtx_tuple.
 	 */
-	is_tiny = (is_tiny && (sizeof(struct tuple) + field_map_size +
-			       sizeof(uint8_t) * 2 <= UINT8_MAX));
-	if (!is_tiny)
-		field_map_size = field_map_build_size(&builder, is_tiny);
+	is_tiny = (is_tiny && (sizeof(struct tuple) +
+			       field_map_size <= MAX_TINY_DATA_OFFSET));
+	field_map_size = field_map_build_size(&builder, is_tiny);
 	uint32_t data_offset = sizeof(struct tuple) + field_map_size +
-			       is_tiny * 2 * sizeof(uint8_t) +
-			       !is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));
-	assert(!is_tiny || data_offset <= UINT8_MAX);
+			       !is_tiny * sizeof(uint32_t);
+	assert(!is_tiny || data_offset <= MAX_TINY_DATA_OFFSET);
 	if (data_offset > INT16_MAX) {
 		/** tuple data_offset is 15 bits */
 		diag_set(ClientError, ER_TUPLE_METADATA_IS_TOO_BIG,
@@ -1221,8 +1219,7 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	}
 
 	size_t total = sizeof(struct memtx_tuple) + field_map_size +
-		       tuple_len + is_tiny * 2 * sizeof(uint8_t) +
-		       !is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));
+		       tuple_len + !is_tiny * sizeof(uint32_t);
 
 	ERROR_INJECT(ERRINJ_TUPLE_ALLOC, {
 		diag_set(OutOfMemory, total, "slab allocator", "memtx_tuple");
@@ -1248,13 +1245,12 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	tuple = &memtx_tuple->base;
 	tuple->refs = 0;
 	memtx_tuple->version = memtx->snapshot_version;
-	assert(tuple_len <= UINT32_MAX); /* bsize is UINT32_MAX */
 	tuple->is_tiny = is_tiny;
 	tuple_set_bsize(tuple, tuple_len);
 	tuple->format_id = tuple_format_id(format);
 	tuple_format_ref(format);
 	tuple_set_data_offset(tuple, data_offset);
-	tuple->is_dirty = false;
+	tuple_set_dirty(tuple, false);
 	char *raw = (char *) tuple + data_offset;
 	field_map_build(&builder, raw - field_map_size, is_tiny);
 	memcpy(raw, data, tuple_len);

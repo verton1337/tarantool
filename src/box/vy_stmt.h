@@ -186,8 +186,7 @@ static inline int64_t
 vy_stmt_lsn(struct tuple *stmt)
 {
 	return ((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-                stmt->is_tiny * 2 * sizeof(uint8_t)))->lsn;
+				   !stmt->is_tiny * sizeof(uint32_t)))->lsn;
 }
 
 /** Set LSN of the vinyl statement. */
@@ -195,17 +194,15 @@ static inline void
 vy_stmt_set_lsn(struct tuple *stmt, int64_t lsn)
 {
 	((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-		stmt->is_tiny * 2 * sizeof(uint8_t)))->lsn = lsn;
+			    !stmt->is_tiny * sizeof(uint32_t)))->lsn = lsn;
 }
 
 /** Get type of the vinyl statement. */
 static inline enum iproto_type
 vy_stmt_type(struct tuple *stmt)
 {
-	return (enum iproto_type)((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-		stmt->is_tiny * 2 * sizeof(uint8_t)))->type;
+	return ((struct vy_stmt *)((void *)stmt +
+				   !stmt->is_tiny * sizeof(uint32_t)))->type;
 }
 
 /** Set type of the vinyl statement. */
@@ -213,8 +210,7 @@ static inline void
 vy_stmt_set_type(struct tuple *stmt, enum iproto_type type)
 {
 	((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-		stmt->is_tiny * 2 * sizeof(uint8_t)))->type = type;
+			    !stmt->is_tiny * sizeof(uint32_t)))->type = type;
 }
 
 /** Get flags of the vinyl statement. */
@@ -222,8 +218,7 @@ static inline uint8_t
 vy_stmt_flags(struct tuple *stmt)
 {
 	return ((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-                stmt->is_tiny * 2 * sizeof(uint8_t)))->flags;
+				   !stmt->is_tiny * sizeof(uint32_t)))->flags;
 }
 
 /** Set flags of the vinyl statement. */
@@ -231,8 +226,7 @@ static inline void
 vy_stmt_set_flags(struct tuple *stmt, uint8_t flags)
 {
 	((struct vy_stmt *)((void *)stmt +
-		!stmt->is_tiny * (sizeof(uint32_t) + sizeof(uint16_t)) +
-		stmt->is_tiny * 2 * sizeof(uint8_t)))->flags = flags;
+			    !stmt->is_tiny * sizeof(uint32_t)))->flags = flags;
 }
 
 /**

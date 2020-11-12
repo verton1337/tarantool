@@ -44,7 +44,7 @@ test_tuple_access(struct tuple **array, int size)
 		for (int j = 0; j < size; j++) {
 			struct tuple *tuple = array[j];
 			sum += (tuple_bsize(tuple) <= UINT8_MAX) != tuple->is_tiny;
-			sum += tuple->is_dirty;
+			sum += tuple_is_dirty(tuple);
 			sum += tuple_data_or_null(tuple) == NULL;
 			for (uint32_t k = 0; k < tuple_field_count(tuple); k++) {
 				counter++;

@@ -85,14 +85,12 @@ runtime_tuple_new(struct tuple_format *format, const char *data, const char *end
 	if (tuple_field_map_create(format, data, true, &builder, &is_tiny) != 0)
 		goto end;
 	uint32_t field_map_size = field_map_build_size(&builder, is_tiny);
-	is_tiny = (is_tiny && (sizeof(struct tuple) + field_map_size +
-			       sizeof(uint8_t) * 2 <= UINT8_MAX));
-	if (!is_tiny)
-		field_map_size = field_map_build_size(&builder, is_tiny);
+	is_tiny = (is_tiny && (sizeof(struct tuple) +
+			       field_map_size <= MAX_TINY_DATA_OFFSET));
+	field_map_size = field_map_build_size(&builder, is_tiny);
 	uint32_t data_offset = sizeof(struct tuple) + field_map_size +
-			        is_tiny * 2 * sizeof(uint8_t) +
-				!is_tiny * (sizeof(uint32_t) + sizeof(uint16_t));
-	assert(!is_tiny || data_offset <= UINT8_MAX);
+			       !is_tiny * sizeof(uint32_t);
+	assert(!is_tiny || data_offset <= MAX_TINY_DATA_OFFSET);
 	if (data_offset > INT16_MAX) {
 		/** tuple data_offset is 15 bits */
 		diag_set(ClientError, ER_TUPLE_METADATA_IS_TOO_BIG,
@@ -114,7 +112,7 @@ runtime_tuple_new(struct tuple_format *format, const char *data, const char *end
 	tuple->format_id = tuple_format_id(format);
 	tuple_format_ref(format);
 	tuple_set_data_offset(tuple, data_offset);
-	tuple->is_dirty = false;
+	tuple_set_dirty(tuple, false);
 	char *raw = (char *) tuple + data_offset;
 	field_map_build(&builder, raw - field_map_size, is_tiny);
 	memcpy(raw, data, data_len);
