@@ -325,14 +325,25 @@ struct PACKED tuple
 	/** Format identifier. */
 	uint16_t format_id;
 	union {
-		/**
-		 * Offset to the MessagePack from the begin of the tuple.
-		 */
 		struct {
+			/**
+			 * Offset to the MessagePack from the beginning of the
+			 * tuple in case is_tiny == false.
+			 */
 			uint16_t data_offset: 15;
+			/**
+			 * Tuple is tiny in case it's bsize fits in 1 byte,
+			 * it's data_offset fits in 6 bits and field map
+			 * offsets fit into 1 byte each.
+			 */
 			bool is_tiny : 1;
 		};
 		struct {
+			/**
+			 * In case tuple is tiny we can fit bsize, data_offset
+			 * and is_dirty bit into 15 bits. 16th bit of the union
+			 * is still is_tiny bit itself.
+			 */
 			uint8_t tiny_bsize;
 			uint8_t tiny_data_offset : 6;
 			/**
