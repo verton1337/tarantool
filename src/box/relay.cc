@@ -539,7 +539,7 @@ int
 relay_reader_f(va_list ap)
 {
 	struct relay *relay = va_arg(ap, struct relay *);
-	struct fiber *relay_f = va_arg(ap, struct fiber *);
+	struct fiber *relay_fiber = va_arg(ap, struct fiber *);
 
 	struct ibuf ibuf;
 	struct ev_io io;
@@ -557,7 +557,7 @@ relay_reader_f(va_list ap)
 		}
 	} catch (Exception *e) {
 		relay_set_error(relay, e);
-		fiber_cancel(relay_f);
+		fiber_cancel(relay_fiber);
 	}
 	ibuf_destroy(&ibuf);
 	return 0;
@@ -688,9 +688,10 @@ relay_subscribe_f(va_list ap)
 	/* Start fiber for receiving replica acks. */
 	char name[FIBER_NAME_MAX];
 	snprintf(name, sizeof(name), "%s:%s", fiber()->name, "reader");
-	struct fiber *reader = fiber_new_xc(name, relay_reader_f);
-	fiber_set_joinable(reader, true);
-	fiber_start(reader, relay, fiber());
+	struct fiber *reader_fiber = fiber_new_xc(name, relay_reader_f);
+	struct fiber *relay_fiber = fiber();
+	fiber_set_joinable(reader_fiber, true);
+	fiber_start(reader_fiber, relay, relay_fiber);
 
 	/*
 	 * If the replica happens to be up to date on subscribe,
@@ -771,8 +772,8 @@ relay_subscribe_f(va_list ap)
 	wal_clear_watcher(&relay->wal_watcher, cbus_process);
 
 	/* Join ack reader fiber. */
-	fiber_cancel(reader);
-	fiber_join(reader);
+	fiber_cancel(reader_fiber);
+	fiber_join(reader_fiber);
 
 	/* Destroy cpipe to tx. */
 	cbus_unpair(&relay->tx_pipe, &relay->relay_pipe,
