@@ -132,10 +132,7 @@ tuple_extract_key_slowpath(struct tuple *tuple, struct key_def *key_def,
 	/* Calculate the key size. */
 	for (uint32_t i = 0; i < part_count; ++i) {
 		const char *field;
-		if (!has_json_paths) {
-			field = tuple_field_raw(format, data, field_map,
-						key_def->parts[i].fieldno);
-		} else if (!is_multikey) {
+		if (!is_multikey) {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
 							MULTIKEY_NONE);
@@ -184,10 +181,7 @@ tuple_extract_key_slowpath(struct tuple *tuple, struct key_def *key_def,
 	char *key_buf = mp_encode_array(key, part_count);
 	for (uint32_t i = 0; i < part_count; ++i) {
 		const char *field;
-		if (!has_json_paths) {
-			field = tuple_field_raw(format, data, field_map,
-						key_def->parts[i].fieldno);
-		} else if (!is_multikey) {
+		if (!is_multikey) {
 			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i],
 							MULTIKEY_NONE);
