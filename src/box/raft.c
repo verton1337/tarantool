@@ -77,6 +77,8 @@ box_raft_on_update_f(struct trigger *trigger, void *event)
 	(void)trigger;
 	struct raft *raft = (struct raft *)event;
 	assert(raft == box_raft());
+	/* State or enablence could be changed, affecting read-only state. */
+	box_update_ro_summary();
 	if (raft->state != RAFT_STATE_LEADER)
 		return 0;
 	/*
