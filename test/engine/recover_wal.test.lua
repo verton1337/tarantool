@@ -3,7 +3,7 @@
 
 env = require('test_run')
 test_run = env.new()
-test_run:cmd('restart server default')
+test_run:cmd('restart server default with signal=KILL')
 
 engine = test_run:get_cfg('engine')
 space = box.schema.space.create('test', { engine = engine })
