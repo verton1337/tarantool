@@ -8,7 +8,7 @@ test_run = env.new()
 -- Restart the server because need to reset quota used memory
 -- after previous tests.
 --
-test_run:cmd('restart server default')
+test_run:cmd('restart server default with signal=KILL')
 --
 -- gh-1863 add BPS tree extents to memory quota
 --

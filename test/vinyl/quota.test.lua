@@ -6,7 +6,7 @@ test_run = env.new()
 -- after previous tests.
 --
 
-test_run:cmd('restart server default')
+test_run:cmd('restart server default with signal=KILL')
 
 --
 -- gh-1863 add BPS tree extents to memory quota
