@@ -32,7 +32,6 @@
 
 #include "error.h"
 #include "fiber.h"
-#include "xrow.h"
 #include "small/region.h"
 #include "box.h"
 #include "tt_static.h"
@@ -221,7 +220,7 @@ static void
 raft_sm_become_candidate(struct raft *raft);
 
 static const char *
-raft_request_to_string(const struct raft_request *req)
+raft_msg_to_string(const struct raft_msg *req)
 {
 	assert(req->term != 0);
 	char buf[1024];
@@ -259,9 +258,9 @@ raft_request_to_string(const struct raft_request *req)
 }
 
 void
-raft_process_recovery(struct raft *raft, const struct raft_request *req)
+raft_process_recovery(struct raft *raft, const struct raft_msg *req)
 {
-	say_verbose("RAFT: recover %s", raft_request_to_string(req));
+	say_verbose("RAFT: recover %s", raft_msg_to_string(req));
 	if (req->term != 0) {
 		raft->term = req->term;
 		raft->volatile_term = req->term;
@@ -287,11 +286,9 @@ raft_process_recovery(struct raft *raft, const struct raft_request *req)
 }
 
 int
-raft_process_msg(struct raft *raft, const struct raft_request *req,
-		 uint32_t source)
+raft_process_msg(struct raft *raft, const struct raft_msg *req, uint32_t source)
 {
-	say_info("RAFT: message %s from %u", raft_request_to_string(req),
-		 source);
+	say_info("RAFT: message %s from %u", raft_msg_to_string(req), source);
 	assert(source > 0);
 	assert(source != raft->self);
 	if (req->term == 0 || req->state == 0) {
@@ -474,7 +471,7 @@ raft_worker_handle_io(struct raft *raft)
 	assert(raft->is_write_in_progress);
 	/* During write Raft can't be anything but a follower. */
 	assert(raft->state == RAFT_STATE_FOLLOWER);
-	struct raft_request req;
+	struct raft_msg req;
 
 	if (raft_is_fully_on_disk(raft)) {
 end_dump:
@@ -524,8 +521,7 @@ end_dump:
 		 * another leader elected by that time likely.
 		 */
 		raft->vtab->write(raft, &req);
-		say_info("RAFT: persisted state %s",
-			 raft_request_to_string(&req));
+		say_info("RAFT: persisted state %s", raft_msg_to_string(&req));
 
 		assert(req.term >= raft->term);
 		raft->term = req.term;
@@ -544,7 +540,7 @@ static void
 raft_worker_handle_broadcast(struct raft *raft)
 {
 	assert(raft->is_broadcast_scheduled);
-	struct raft_request req;
+	struct raft_msg req;
 	memset(&req, 0, sizeof(req));
 	req.term = raft->term;
 	req.vote = raft->vote;
@@ -803,7 +799,7 @@ raft_sm_stop(struct raft *raft)
 }
 
 void
-raft_serialize_for_network(const struct raft *raft, struct raft_request *req)
+raft_checkpoint_remote(const struct raft *raft, struct raft_msg *req)
 {
 	memset(req, 0, sizeof(*req));
 	/*
@@ -822,7 +818,7 @@ raft_serialize_for_network(const struct raft *raft, struct raft_request *req)
 }
 
 void
-raft_serialize_for_disk(const struct raft *raft, struct raft_request *req)
+raft_checkpoint_local(const struct raft *raft, struct raft_msg *req)
 {
 	memset(req, 0, sizeof(*req));
 	req->term = raft->term;
